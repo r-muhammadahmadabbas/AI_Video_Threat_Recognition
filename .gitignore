@@ -1,25 +1,55 @@
 # Python
 __pycache__/
 *.py[cod]
-*.pyo
-
-# Virtual environments
-.venv/
+*$py.class
+*.so
+.Python
 venv/
+.venv/
 env/
+pip-log.txt
+pip-delete-this-directory.txt
+.tox/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
-# Environment variables / secrets
+# Distribution
+dist/
+build/
+*.egg-info/
+
+# Environment
 .env
-.env.*
-!.env.example
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
 .idea/
-
-# Logs
-*.log
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
+
+# Project specific
+backend/data/
+backend/media/
+backend/models/
+backend/logs/
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Docker
+docker-compose.override.yml
+
+# Testing
+*.prof
