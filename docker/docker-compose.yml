@@ -1,0 +1,150 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: threat-recognition-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: threat_recognition
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: threat-recognition-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: threat-recognition-api
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=threat_recognition
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - AUTH_SECRET_KEY=dev-secret-change-in-production-min-32-chars
+      - MODEL_WEIGHTS_DIR=/models
+      - VIDEO_MEDIA_DIR=/media
+      - LOG_LEVEL=INFO
+      - LOG_FORMAT=console
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../backend:/app
+      - ../models:/models
+      - ../media:/media
+      - ../data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  cv-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.cv-worker
+    container_name: threat-recognition-cv-worker
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=threat_recognition
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - MODEL_WEIGHTS_DIR=/models
+      - MODEL_DETECTOR_NAME=yolo26n
+      - MODEL_INFERENCE_DEVICE=cpu
+      - MODEL_INFERENCE_TARGET_FPS=5
+      - VIDEO_MEDIA_DIR=/media
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../backend:/app
+      - ../models:/models
+      - ../media:/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 2G
+
+  evidence-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.evidence-worker
+    container_name: threat-recognition-evidence-worker
+    environment:
+      - ENVIRONMENT=development
+      - DEBUG=true
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=threat_recognition
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - VIDEO_MEDIA_DIR=/media
+      - VIDEO_CLIP_PRE_SECONDS=5
+      - VIDEO_CLIP_POST_SECONDS=5
+      - VIDEO_CLIP_MAX_DURATION=30
+      - LOG_LEVEL=INFO
+    volumes:
+      - ../backend:/app
+      - ../media:/media
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.frontend
+    container_name: threat-recognition-frontend
+    ports:
+      - "5173:5173"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+    environment:
+      - VITE_API_URL=http://localhost:8000
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

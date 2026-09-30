@@ -1,0 +1,793 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Video Threat Recognition — Fast-Ship Engineering Sprint Plan</title>
+<style>
+:root{
+  --bg:#0b1020; --panel:#11182b; --panel2:#151e34; --ink:#e9eefc; --muted:#aeb8d4;
+  --line:#26314d; --accent:#75a7ff; --accent2:#7fe0c1; --warn:#f3c969; --danger:#ff7f8f;
+  --code:#0a0f1a; --good:#86e0a3; --shadow:0 16px 40px rgba(0,0,0,.25);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:linear-gradient(180deg,#080c18 0%,#0b1020 45%,#0d1324 100%);color:var(--ink);font:15px/1.62 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+.container{max-width:1220px;margin:0 auto;padding:0 28px}
+.cover{padding:78px 0 60px;border-bottom:1px solid var(--line);background:radial-gradient(circle at 85% 10%,rgba(117,167,255,.16),transparent 35%),radial-gradient(circle at 10% 20%,rgba(127,224,193,.10),transparent 30%)}
+.kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--accent2);font-weight:800}
+h1{font-size:46px;line-height:1.06;margin:12px 0 18px;max-width:950px}
+.subtitle{font-size:19px;line-height:1.5;color:var(--muted);max-width:900px}
+.meta{display:flex;flex-wrap:wrap;gap:10px;margin-top:24px}.pill{padding:6px 10px;border:1px solid var(--line);border-radius:999px;color:#cbd5ef;background:rgba(255,255,255,.02);font-size:12px}
+.callout{border:1px solid var(--line);border-left:4px solid var(--accent);background:rgba(117,167,255,.06);padding:16px 18px;border-radius:10px;margin:22px 0;box-shadow:var(--shadow)}
+.callout.warn{border-left-color:var(--warn);background:rgba(243,201,105,.06)}
+.callout.danger{border-left-color:var(--danger);background:rgba(255,127,143,.05)}
+.callout.good{border-left-color:var(--good);background:rgba(134,224,163,.05)}
+.layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:28px}
+aside{position:sticky;top:16px;align-self:start;max-height:calc(100vh - 32px);overflow:auto;padding:18px 0}
+aside h3{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin:0 0 10px}
+aside a{display:block;padding:6px 9px;border-radius:7px;color:#bfc8df;font-size:13px} aside a:hover{background:#151d31;color:#fff;text-decoration:none}
+main{min-width:0}
+section{padding:34px 0;border-bottom:1px solid var(--line)}
+h2{font-size:29px;line-height:1.2;margin:0 0 12px} h3{font-size:20px;margin:28px 0 10px} h4{font-size:16px;margin:20px 0 8px}
+p{margin:8px 0 14px} .muted{color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+.card{border:1px solid var(--line);background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.015));border-radius:12px;padding:17px;box-shadow:var(--shadow)}
+.card h4{margin-top:0}.card p:last-child{margin-bottom:0}
+ul,ol{padding-left:22px} li{margin:6px 0}
+code{font-family:"JetBrains Mono",Consolas,monospace;font-size:.92em;background:#0f172a;padding:2px 5px;border-radius:5px;color:#d9e6ff}
+pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:16px;overflow:auto;color:#dbe5fa;font:12.5px/1.55 "JetBrains Mono",Consolas,monospace}
+.table-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px}.table-wrap table{border-collapse:collapse;width:100%;min-width:760px}th,td{padding:10px 11px;border-bottom:1px solid var(--line);vertical-align:top;text-align:left}th{background:#131c31;color:#dbe6ff;font-size:12px;text-transform:uppercase;letter-spacing:.07em}td{color:#cbd4e9}tr:last-child td{border-bottom:none}
+.badge{display:inline-block;padding:3px 7px;border-radius:6px;font-size:11px;font-weight:800;letter-spacing:.04em;margin-right:6px}.p0{background:#3a1720;color:#ffb6c0}.p1{background:#2e2713;color:#f3d27d}.p2{background:#15263a;color:#9fc8ff}.p3{background:#14251d;color:#9be5b2}
+.sprint{border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:18px 0;background:#0f1525}.sprint-head{padding:16px 18px;background:linear-gradient(90deg,#141d32,#11182a);display:flex;justify-content:space-between;gap:12px;align-items:flex-start}.sprint-head h3{margin:0;font-size:22px}.sprint-body{padding:4px 18px 18px}.sprint-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.mini{border:1px solid #222d47;background:#0d1424;border-radius:10px;padding:13px}.mini h4{margin:0 0 6px;font-size:14px}.mini ul{margin:6px 0}.exit{border-left:3px solid var(--good);padding-left:12px}.decision{border-left:3px solid var(--warn);padding-left:12px}.learn{border-left:3px solid var(--accent);padding-left:12px}
+.kpi{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi .card strong{display:block;font-size:22px}.kpi .card span{color:var(--muted);font-size:12px}
+.diagram{border:1px solid var(--line);background:#0a101d;border-radius:12px;padding:16px;overflow:auto}.boxes{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;align-items:center}.box{border:1px solid #36517b;background:#111b30;border-radius:9px;padding:12px;text-align:center;font-weight:700;color:#dbe7ff}.box.green{border-color:#316b59;background:#10231e}.box.orange{border-color:#7c5d25;background:#241d0f}.arrow{text-align:center;color:#6f86ad;font-size:22px}
+.small{font-size:12px}.center{text-align:center}
+.footer{padding:38px 0 70px;color:var(--muted);font-size:12px}
+details{border:1px solid var(--line);border-radius:10px;margin:10px 0;background:#0e1525}summary{cursor:pointer;padding:11px 13px;font-weight:700}details .inside{padding:0 13px 13px}
+@media(max-width:960px){.layout{grid-template-columns:1fr}aside{position:static;max-height:none}.grid,.grid3,.sprint-grid{grid-template-columns:1fr}.kpi{grid-template-columns:repeat(2,1fr)}.boxes{grid-template-columns:repeat(2,1fr)}h1{font-size:37px}}
+@media print{body{background:white;color:#111}.container{max-width:none}.cover{background:white}.layout{grid-template-columns:1fr}aside{display:none}.card,.sprint,.diagram,.table-wrap,details{box-shadow:none;background:white;border-color:#bbb}h1,h2,h3,h4,p,li,td{color:#111}a{color:#164ea0}pre{background:#f4f5f7;color:#111;border-color:#bbb}.cover{page-break-after:always}section{break-inside:avoid} .sprint{break-inside:avoid}}
+</style>
+</head>
+<body>
+<header class="cover">
+  <div class="container">
+    <div class="kicker">Engineering execution document</div>
+    <h1>AI Video Threat Recognition<br>Fast-Ship Sprint Plan</h1>
+    <p class="subtitle">A practical build-and-learn plan for implementing the full proposed system: video ingestion, computer vision, tracking, event detection, threat rules, incident handling, human verification, alerts, dashboard, access control, privacy, deployment, testing, observability and multi-user reliability.</p>
+    <div class="meta">
+      <span class="pill">Free / open-source first</span>
+      <span class="pill">MVP → pilot-ready architecture</span>
+      <span class="pill">CV learning embedded in delivery</span>
+      <span class="pill">Time-boxed sprints</span>
+      <span class="pill">Designed for multi-user operation</span>
+    </div>
+    <div class="callout good">
+      <strong>Operating rule:</strong> ship a complete thin slice early, then replace weak pieces one by one. Do not wait until “the CV is finished” before building the product around it.
+    </div>
+  </div>
+</header>
+
+<div class="container layout">
+<aside>
+  <h3>Contents</h3>
+  <a href="#1">1. Product contract</a>
+  <a href="#2">2. Delivery strategy</a>
+  <a href="#3">3. Architecture</a>
+  <a href="#4">4. CV subsystem</a>
+  <a href="#5">5. Application subsystem</a>
+  <a href="#6">6. Data & state</a>
+  <a href="#7">7. Sprint map</a>
+  <a href="#8">8. Detailed sprints</a>
+  <a href="#9">9. Testing & evaluation</a>
+  <a href="#10">10. Production hardening</a>
+  <a href="#11">11. Deployment</a>
+  <a href="#12">12. Learning plan</a>
+  <a href="#13">13. Risk register</a>
+  <a href="#14">14. Definition of Done</a>
+  <a href="#15">15. Fast-track variants</a>
+</aside>
+
+<main>
+<section id="1">
+<h2>1. Product contract: what is being built</h2>
+<p>The supplied concept proposal defines an AI safety layer around existing surveillance infrastructure. Its operating idea is <strong>Detect → Verify → Alert</strong>: analyze configured video streams, surface high-risk visual events, and require human confirmation before serious escalation.</p>
+<div class="grid">
+  <div class="card"><h4>Required event family</h4><p>Visible weapon, physical altercation, restricted-zone entry, person down, loitering, and abnormal crowd movement are the proposed initial high-value detections.</p></div>
+  <div class="card"><h4>System shape</h4><p>Existing cameras / RTSP / ONVIF / VMS → AI gateway → models + confidence + rules → human verification → alert / response.</p></div>
+  <div class="card"><h4>Architecture direction</h4><p>Hybrid edge / on-prem inference is the proposed direction, with local buffering and selected events / metadata sent to the application layer.</p></div>
+  <div class="card"><h4>Operational features</h4><p>Security dashboard, incident timeline, RBAC, audit logs, integrations, configurable retention and privacy zones are part of the target platform shape.</p></div>
+</div>
+<div class="callout warn"><strong>Important distinction:</strong> the proposal contains pilot goals such as 99.9% uptime, 90%+ camera compatibility, ≤5 s alert delivery and a 30 s critical-event review target. Those are <em>proposed design goals</em>, not measured results. They must not be presented as achieved until tested.</div>
+<h3>1.1 Scope for this engineering plan</h3>
+<p>This plan assumes the internship deliverable must implement the complete product surface, but may use practical shortcuts where the proposal is architectural rather than prescriptive. The system should be real enough to demonstrate end-to-end behavior and structured so a later production team can replace individual components without rewriting the system.</p>
+<h3>1.2 Non-negotiable product behavior</h3>
+<ul>
+<li>The AI produces <strong>potential incidents</strong>; it should not silently become an autonomous emergency decision-maker.</li>
+<li>Every event must be traceable to a camera, time range, model/rule path, confidence and stored evidence.</li>
+<li>A camera source must be replaceable without changing the CV logic.</li>
+<li>One slow camera must not freeze other cameras.</li>
+<li>One bad frame, broken stream, model exception or notification failure must degrade that component without taking down the whole service.</li>
+<li>Multiple users must be able to review different incidents concurrently without corrupting state.</li>
+</ul>
+</section>
+
+<section id="2">
+<h2>2. Delivery strategy: fast without creating a fragile mess</h2>
+<h3>2.1 The core method: vertical slices</h3>
+<div class="diagram">
+<pre>
+                    FULL PRODUCT
+                         │
+             ┌───────────┴───────────┐
+             │                       │
+         CV PIPELINE            APPLICATION
+             │                       │
+     Detection → Tracking       API → DB
+             │                       │
+      Behavior / Events        UI → Review
+             │                       │
+             └───────────┬───────────┘
+                         │
+                    INTEGRATION
+                         │
+                 DEMOABLE SYSTEM
+</pre>
+</div>
+<p>Each sprint should leave the repository in a runnable state. Do not create a six-week “CV branch” that cannot be demonstrated by anyone else.</p>
+<h3>2.2 What to build first</h3>
+<ol>
+<li><strong>Runtime skeleton:</strong> configuration, logging, health checks, database, API, basic UI shell.</li>
+<li><strong>Thin CV slice:</strong> video input → person detection → event object.</li>
+<li><strong>Incident slice:</strong> event → evidence clip → API → dashboard → verify / dismiss.</li>
+<li><strong>Tracking and rules:</strong> turn raw detections into useful events.</li>
+<li><strong>More threat modules:</strong> person down, fight, crowd, weapon.</li>
+<li><strong>Infrastructure hardening:</strong> RTSP, multi-camera isolation, queues, concurrency, auth, privacy, audit, load testing.</li>
+</ol>
+<h3>2.3 The “learn while shipping” rule</h3>
+<div class="grid">
+<div class="card"><h4>Learn only what unlocks the next implementation</h4><p>Before implementing tracking, learn IoU, data association and track lifecycle. Do not spend days on unrelated CV theory.</p></div>
+<div class="card"><h4>Read model documentation yourself</h4><p>You must know what inputs, outputs, confidence values, classes and limitations your model has. Do not treat generated code as understanding.</p></div>
+<div class="card"><h4>Write a tiny experiment first</h4><p>For every unfamiliar CV technique, make a small reproducible notebook/script before integrating it into the main system.</p></div>
+<div class="card"><h4>Promote experiments only after tests</h4><p>Prototype code can be messy. Production modules need types, error handling, logging, configuration and tests.</p></div>
+</div>
+<h3>2.4 Timeboxing</h3>
+<p>Every sub-sprint has three clocks: <strong>learning clock</strong>, <strong>implementation clock</strong>, and <strong>integration clock</strong>. When a learning topic starts consuming the sprint, reduce scope of the feature—not testing and not integration.</p>
+</section>
+
+<section id="3">
+<h2>3. System architecture</h2>
+<h3>3.1 Logical architecture</h3>
+<div class="diagram">
+<div class="boxes">
+  <div class="box">Camera Sources<br><span class="small">MP4 / Webcam / RTSP</span></div>
+  <div class="box">Ingestion<br><span class="small">decode + frame policy</span></div>
+  <div class="box">CV Runtime<br><span class="small">detection + tracking</span></div>
+  <div class="box green">Threat Engine<br><span class="small">rules + temporal state</span></div>
+  <div class="box">Evidence<br><span class="small">buffer + clip writer</span></div>
+  <div class="box orange">Incident Service<br><span class="small">state + dedupe</span></div>
+  <div class="box">API / Auth<br><span class="small">FastAPI</span></div>
+  <div class="box green">Dashboard<br><span class="small">operator workflow</span></div>
+</div>
+</div>
+<h3>3.2 Recommended service boundaries</h3>
+<p>For the first deployment, do not split into ten microservices. Use a <strong>modular monolith plus an isolated CV worker process</strong>. This gives clean boundaries without operational overhead.</p>
+<table class="table-wrap"><tr><th>Component</th><th>Responsibility</th><th>Why this boundary</th></tr>
+<tr><td>API / Application</td><td>Auth, users, cameras, incidents, rules, configuration, dashboard data</td><td>Transactional business logic should stay together initially.</td></tr>
+<tr><td>CV Worker</td><td>Decode frames, infer, track, emit observations/events</td><td>GPU / CPU-heavy work must not block HTTP requests.</td></tr>
+<tr><td>Evidence Worker</td><td>Save buffered event clips, snapshots, thumbnails</td><td>Disk and encoding work is bursty and should be asynchronous.</td></tr>
+<tr><td>Notification Worker</td><td>Email / future Teams / SMS adapters</td><td>Network failures must not block incident creation.</td></tr>
+<tr><td>Database</td><td>Persistent metadata and state</td><td>Single source of truth for application state.</td></tr>
+<tr><td>Cache / Queue</td><td>Ephemeral job coordination, rate limits, worker signalling</td><td>Keeps background work independent from API latency.</td></tr>
+</table>
+<h3>3.3 Initial deployment topology</h3>
+<pre>
++---------------------------------------------------------------+
+|                 AI SAFETY NODE / SERVER                      |
+|                                                               |
+|  +-------------+     +------------------+                     |
+|  | FastAPI     |<--->| PostgreSQL/DB    |                     |
+|  | App         |     +------------------+                     |
+|  +------+------+                                             |
+|         |                                                     |
+|         +--------------------+--------------------+            |
+|                              |                    |            |
+|                       +------+-----+       +------+-------+    |
+|                       | CV Worker |       | Evidence /    |    |
+|                       | GPU/CPU   |       | Notifications|    |
+|                       +------+-----+       +--------------+    |
+|                              |                                |
+|                         frame source                          |
+|                              |                                |
+|                  +-----------+-----------+                    |
+|                  |                       |                    |
+|                MP4                    RTSP                  |
++---------------------------------------------------------------+
+
+Later, the same boundaries can be moved to separate machines or containers.
+</pre>
+<h3>3.4 Architecture decisions</h3>
+<div class="table-wrap"><table>
+<tr><th>Decision</th><th>Choice</th><th>Reason</th><th>Revisit when</th></tr>
+<tr><td>Backend architecture</td><td>Modular monolith</td><td>Fast to ship; low operational complexity; easy transactions.</td><td>Teams or traffic demand independent scaling.</td></tr>
+<tr><td>CV execution</td><td>Separate worker process</td><td>Prevents GPU work from blocking HTTP.</td><td>Only if a dedicated inference service becomes necessary.</td></tr>
+<tr><td>DB</td><td>PostgreSQL target; SQLite only for single-user development</td><td>Concurrent users and durable state require a real server DB.</td><td>Never for multi-user deployment.</td></tr>
+<tr><td>Queue</td><td>Redis-backed jobs or lightweight broker</td><td>Decouples event, clip, and notification work.</td><td>When scale or delivery guarantees require a stronger broker.</td></tr>
+<tr><td>Frontend</td><td>React SPA</td><td>Fast dashboard development and component reuse.</td><td>SSR is not required for the operator dashboard.</td></tr>
+<tr><td>Video protocol</td><td>OpenCV / FFmpeg for files and RTSP</td><td>Practical and free for POC.</td><td>ONVIF/VMS integration once device discovery requirements are known.</td></tr>
+<tr><td>Containerization</td><td>Docker Compose first</td><td>One-command local/staging deployment.</td><td>Move to orchestrator only after real scale evidence.</td></tr>
+</table></div>
+</section>
+
+<section id="4">
+<h2>4. Computer-vision subsystem</h2>
+<h3>4.1 CV pipeline</h3>
+<pre>
+Frame Source
+    ↓
+Decode / timestamp
+    ↓
+Frame sampling policy
+    ↓
+Pre-processing
+    ↓
+Object detector
+    ↓
+Confidence / class filtering
+    ↓
+Tracker
+    ↓
+Track state + trajectories
+    ↓
+Behavior features
+    ↓
+Threat rules / secondary models
+    ↓
+Event candidate
+    ↓
+Temporal confirmation / cooldown / dedup
+    ↓
+Incident candidate
+</pre>
+<h3>4.2 Separate observations from incidents</h3>
+<p>A bounding box is not an incident. A track is not an incident. This distinction is central to the design.</p>
+<div class="grid3">
+<div class="card"><h4>Observation</h4><p>“Person detected at x,y,w,h with confidence c at timestamp t.”</p></div>
+<div class="card"><h4>Track</h4><p>“These observations are probably the same person across frames.”</p></div>
+<div class="card"><h4>Incident candidate</h4><p>“Track #17 satisfied the restricted-zone rule for the configured policy.”</p></div>
+</div>
+<h3>4.3 Model strategy</h3>
+<ul>
+<li>Use a small pretrained detector as the default development model. Do not train a detector from scratch.</li>
+<li>Prefer deterministic geometry and temporal rules where they solve the problem reliably enough.</li>
+<li>Use tracking as the common state layer for multiple threat modules.</li>
+<li>Fine-tune only when baseline models demonstrably fail on the target camera environment.</li>
+<li>Keep model weights outside source control and load them from a configured model directory or artifact location.</li>
+</ul>
+<h3>4.4 Threat-module design</h3>
+<div class="table-wrap"><table>
+<tr><th>Module</th><th>First implementation</th><th>Core inputs</th><th>Primary failure mode</th><th>Mitigation</th></tr>
+<tr><td>Restricted zone</td><td>Person track + point-in-polygon + entry/exit state</td><td>Track center, zone polygon, timestamp</td><td>False entry at boundary</td><td>Hysteresis / boundary margin / consecutive frames.</td></tr>
+<tr><td>Loitering</td><td>Zone residency timer</td><td>Track ID, zone, elapsed time</td><td>Camera jitter / temporary occlusion</td><td>Track grace period and persistence thresholds.</td></tr>
+<tr><td>Person down</td><td>Geometry + motion + persistence</td><td>Box/pose features, motion, time</td><td>Crouching / sitting mistaken for fall</td><td>Multi-frame confirmation + optional pose model.</td></tr>
+<tr><td>Fight</td><td>Pair proximity + relative motion + temporal pattern</td><td>Track pairs, velocity, distance</td><td>Normal crowd interaction</td><td>Temporal window, movement thresholds, scene calibration.</td></tr>
+<tr><td>Crowd anomaly</td><td>Collective motion statistics</td><td>Many tracks, directions, speed, density</td><td>Normal rush periods</td><td>Baseline by camera/time window; compare deviations.</td></tr>
+<tr><td>Weapon</td><td>Dedicated detector / fine-tuned detector if baseline insufficient</td><td>Frame crop, object class, confidence</td><td>Small object / occlusion / look-alikes</td><td>Temporal confirmation, context checks, custom dataset.</td></tr>
+</table></div>
+<h3>4.5 CV state management</h3>
+<pre>
+CameraState
+  ├─ stream_status
+  ├─ last_frame_time
+  ├─ fps_observed
+  ├─ dropped_frames
+  ├─ tracks: {track_id -> TrackState}
+  ├─ active_zone_states
+  ├─ active_event_candidates
+  └─ cooldowns
+
+TrackState
+  ├─ first_seen
+  ├─ last_seen
+  ├─ bbox
+  ├─ center
+  ├─ class_id
+  ├─ confidence
+  ├─ velocity_estimate
+  ├─ zone_membership
+  └─ trajectory_buffer
+</pre>
+<h3>4.6 Performance strategy</h3>
+<p>Do not automatically infer at camera FPS. Separate <strong>decode rate</strong>, <strong>inference rate</strong> and <strong>display rate</strong>. Example: a 25–30 FPS stream may be decoded continuously while inference runs at a lower target rate and the tracker fills gaps.</p>
+<p>The exact target must be measured on the available machine and camera resolution. Keep the inference policy configurable per camera.</p>
+</section>
+
+<section id="5">
+<h2>5. Application subsystem</h2>
+<h3>5.1 Backend modules</h3>
+<pre>
+backend/
+├── app/
+│   ├── main.py
+│   ├── config.py
+│   ├── logging.py
+│   ├── db/
+│   ├── auth/
+│   ├── users/
+│   ├── cameras/
+│   ├── incidents/
+│   ├── rules/
+│   ├── notifications/
+│   ├── evidence/
+│   ├── audit/
+│   └── health/
+├── workers/
+│   ├── cv_worker/
+│   ├── evidence_worker/
+│   └── notification_worker/
+└── tests/
+</pre>
+<h3>5.2 API responsibilities</h3>
+<div class="table-wrap"><table>
+<tr><th>Area</th><th>Representative endpoints</th><th>Notes</th></tr>
+<tr><td>Auth</td><td><code>POST /auth/login</code>, <code>POST /auth/refresh</code></td><td>Short-lived access tokens; refresh policy depends on deployment.</td></tr>
+<tr><td>Cameras</td><td><code>GET /cameras</code>, <code>POST /cameras</code>, <code>PATCH /cameras/{id}</code></td><td>Never expose stored credentials back to clients.</td></tr>
+<tr><td>Incidents</td><td><code>GET /incidents</code>, <code>GET /incidents/{id}</code></td><td>Filtering/pagination required.</td></tr>
+<tr><td>Review</td><td><code>POST /incidents/{id}/verify</code>, <code>POST /incidents/{id}/dismiss</code></td><td>Must record user and timestamp.</td></tr>
+<tr><td>Evidence</td><td><code>GET /incidents/{id}/clip</code></td><td>Authorization before serving media.</td></tr>
+<tr><td>Health</td><td><code>GET /health/live</code>, <code>GET /health/ready</code></td><td>Separate process health from dependency readiness.</td></tr>
+<tr><td>Admin</td><td>users, roles, rules, retention</td><td>Restricted to administrators.</td></tr>
+</table></div>
+<h3>5.3 API rules</h3>
+<ul>
+<li>Every list endpoint is paginated.</li>
+<li>Every mutating endpoint validates input and returns stable error structures.</li>
+<li>Do not put long-running CV work inside an HTTP request.</li>
+<li>Idempotent actions should be implemented where retries are expected.</li>
+<li>Use UTC timestamps in storage; convert to local time only at presentation.</li>
+<li>Never log passwords, tokens, stream URLs containing secrets, or raw notification credentials.</li>
+</ul>
+<h3>5.4 Dashboard views</h3>
+<ol>
+<li><strong>Overview:</strong> system health, online cameras, open incidents.</li>
+<li><strong>Camera wall:</strong> live / near-live preview and status.</li>
+<li><strong>Incident list:</strong> filter by camera, event type, severity, status, time range.</li>
+<li><strong>Incident detail:</strong> event clip, snapshot, context, confidence, detection timeline, actions.</li>
+<li><strong>Administration:</strong> users, roles, cameras, zones, rules, retention.</li>
+<li><strong>Audit:</strong> who viewed, verified, dismissed, changed or exported what.</li>
+</ol>
+</section>
+
+<section id="6">
+<h2>6. Data model and state machines</h2>
+<h3>6.1 Core entities</h3>
+<pre>
+User
+Role
+Camera
+CameraCredentialRef
+Zone
+ThreatRule
+ModelVersion
+Incident
+IncidentEvidence
+Notification
+AuditLog
+SystemHealthSnapshot
+</pre>
+<h3>6.2 Incident state machine</h3>
+<pre>
+DETECTED
+   │
+   ├── duplicate / cooldown ──> MERGED
+   │
+   └── accepted ──> PENDING_REVIEW
+                         │
+                  ┌──────┴──────┐
+                  ▼             ▼
+               VERIFIED      DISMISSED
+                  │
+                  ▼
+              NOTIFICATION
+                  │
+          ┌───────┴────────┐
+          ▼                ▼
+       SENT/ACK         FAILED
+                             │
+                             └── retry / surface failure
+</pre>
+<p>Do not model an incident as a simple boolean “alerted”. You need enough state to explain what happened, retry safely and audit human actions.</p>
+<h3>6.3 Minimal incident record</h3>
+<pre>
+incident_id
+camera_id
+zone_id (nullable)
+event_type
+severity
+status
+first_seen_at
+last_seen_at
+created_at
+resolved_at
+confidence
+model_version
+rule_version
+track_ids
+snapshot_uri
+clip_uri
+verification_user_id
+verification_at
+notification_status
+metadata_json
+</pre>
+<h3>6.4 Idempotency and deduplication</h3>
+<p>Threat detection naturally produces repeated frames describing the same event. Create an event signature such as <code>camera + event_type + track_id + time_bucket</code>, then apply cooldown and merge logic. The goal is one human-reviewable incident instead of hundreds of identical alerts.</p>
+<h3>6.5 Retention</h3>
+<p>Evidence must have a lifecycle: created → reviewable → retained for configured duration → deleted. Retention should be a configuration, not a hard-coded forever policy.</p>
+</section>
+
+<section id="7">
+<h2>7. Sprint map</h2>
+<p>Use <strong>short implementation sprints</strong>. A sprint can be one working day or several days depending on available time. The order matters more than the calendar.</p>
+<div class="table-wrap"><table>
+<tr><th>Sprint</th><th>Outcome</th><th>Primary learning</th><th>Ship gate</th></tr>
+<tr><td><span class="badge p0">S0</span> Foundation</td><td>Repo, environments, config, logging, DB, Docker skeleton</td><td>System boundaries, reproducibility</td><td>Fresh machine starts stack</td></tr>
+<tr><td><span class="badge p0">S1</span> Thin slice</td><td>Video → detection → incident → UI</td><td>Detector outputs</td><td>One complete demo</td></tr>
+<tr><td><span class="badge p1">S2</span> Tracking</td><td>Stable IDs + track state</td><td>IoU, association, lifecycle</td><td>Tracks survive frames</td></tr>
+<tr><td><span class="badge p1">S3</span> Zones</td><td>Restricted entry + loitering</td><td>Spatial + temporal reasoning</td><td>Events not frame spam</td></tr>
+<tr><td><span class="badge p1">S4</span> Evidence</td><td>Snapshots + event clips</td><td>Pre/post buffering</td><td>Every incident has evidence</td></tr>
+<tr><td><span class="badge p1">S5</span> Person-down</td><td>First higher-level behavior module</td><td>Temporal confirmation / pose options</td><td>False-positive analysis documented</td></tr>
+<tr><td><span class="badge p1">S6</span> Fight</td><td>Pairwise motion behavior</td><td>Temporal feature design</td><td>Scene-calibrated thresholds</td></tr>
+<tr><td><span class="badge p1">S7</span> Crowd</td><td>Collective movement anomaly</td><td>Aggregation + baseline</td><td>Known scenario tests</td></tr>
+<tr><td><span class="badge p0">S8</span> Weapon</td><td>Dedicated weapon pipeline</td><td>Dataset/model evaluation</td><td>Measured precision/recall on holdout set</td></tr>
+<tr><td><span class="badge p0">S9</span> Operator app</td><td>Dashboard, filters, review workflow</td><td>Async UX and API contracts</td><td>Two concurrent users tested</td></tr>
+<tr><td><span class="badge p0">S10</span> Security</td><td>Auth, RBAC, audit, privacy zones</td><td>Threat modelling</td><td>Unauthorized paths rejected</td></tr>
+<tr><td><span class="badge p0">S11</span> Camera scale</td><td>RTSP, multi-camera isolation</td><td>Concurrency/backpressure</td><td>One camera failure doesn't kill others</td></tr>
+<tr><td><span class="badge p0">S12</span> Hardening</td><td>Load tests, failure tests, metrics</td><td>Reliability engineering</td><td>Known limits documented</td></tr>
+<tr><td><span class="badge p0">S13</span> Release</td><td>Staging/prod package, docs, runbook</td><td>Operational ownership</td><td>Clean install + demo checklist</td></tr>
+</table></div>
+<div class="callout">If time collapses, <strong>never delete S0, S1, S4, S9, S10 or S12 completely.</strong> Reduce advanced CV scope first. A feature without evidence, review workflow, security and failure handling is not a shippable product capability.</div>
+</section>
+
+<section id="8">
+<h2>8. Detailed sprints and sub-sprints</h2>
+
+<div class="sprint"><div class="sprint-head"><h3>S0 — Engineering foundation</h3><span class="badge p0">BLOCKER</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>0A — Repository and standards</h4><p>Define repository layout, Python environment, frontend environment, code formatting, linting, type-checking policy, commit style, environment variable conventions.</p><div class="exit"><strong>Exit:</strong> another developer can clone and run basic checks.</div></div>
+<div class="mini"><h4>0B — Configuration and secrets</h4><p>Create typed configuration for DB URL, model path, media directory, log level, allowed origins, retention values and notification settings. Use an environment file only for local development; never commit secrets.</p><div class="decision"><strong>Decision:</strong> application config is code-readable; secrets are external.</div></div>
+<div class="mini"><h4>0C — Database and migrations</h4><p>Create initial schema and migration process. Use Postgres for multi-user environments; permit SQLite only as a developer convenience if necessary.</p><div class="exit"><strong>Exit:</strong> migration up/down or forward migration is documented.</div></div>
+<div class="mini"><h4>0D — Logging and health</h4><p>Structured logs with request IDs and camera IDs. Add liveness and readiness endpoints. Define what is safe to log.</p><div class="exit"><strong>Exit:</strong> a failing DB is visible in readiness without crashing the API process.</div></div>
+</div>
+<p class="learn"><strong>Learn:</strong> why configuration, dependency injection, migrations, structured logging and health checks exist. You should be able to explain each one before moving on.</p>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S1 — First vertical slice: video to verified incident</h3><span class="badge p0">SHIP EARLY</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>1A — Video reader</h4><p>Build a common <code>VideoSource</code> interface with file and webcam implementations. Emit frames plus source timestamps. Add end-of-stream and reconnect states.</p></div>
+<div class="mini"><h4>1B — Detector adapter</h4><p>Wrap the chosen pretrained detector behind <code>Detector.detect(frame)</code>. Normalize its output into your own internal <code>Detection</code> schema.</p></div>
+<div class="mini"><h4>1C — Event adapter</h4><p>For the first thin slice, generate a simple person-presence or test event with confidence and evidence metadata. Do not bury business logic inside model code.</p></div>
+<div class="mini"><h4>1D — API + dashboard</h4><p>Create incident endpoint, incident list, incident detail, and a verify/dismiss UI. Use polling first; real-time push can come later.</p></div>
+</div>
+<div class="exit"><strong>Definition of done:</strong> upload an MP4, run the worker, create an event, show it in the dashboard, verify it, and see the action recorded.</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S2 — Tracking core</h3><span class="badge p1">CV CORE</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>2A — Tracking experiment</h4><p>Measure how the selected tracker handles occlusion, crossings and short disappearances. Visualize track IDs and trajectories.</p></div>
+<div class="mini"><h4>2B — Track lifecycle</h4><p>Implement new → active → temporarily lost → terminated states. Add max-age / grace periods as configuration.</p></div>
+<div class="mini"><h4>2C — Camera-local state</h4><p>Keep tracks scoped to a camera session. Never assume a track ID is globally unique across cameras.</p></div>
+<div class="mini"><h4>2D — Test fixtures</h4><p>Create short reproducible clips for single person, two persons crossing, partial occlusion and re-entry.</p></div>
+</div>
+<p class="learn"><strong>Learn:</strong> detection is frame-local; tracking builds temporal identity. Understand association and why identity can be lost.</p>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S3 — Restricted zones and loitering</h3><span class="badge p1">FIRST REAL VALUE</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>3A — Zone editor</h4><p>Allow an admin to define polygon zones on a camera frame. Persist vertices and metadata.</p></div>
+<div class="mini"><h4>3B — Entry / exit logic</h4><p>Use a stable point from the track (typically a bottom-center point) and point-in-polygon checks. Add boundary hysteresis to prevent flicker.</p></div>
+<div class="mini"><h4>3C — Loiter timer</h4><p>Track continuous residency time. Define whether “brief exit” resets the timer or receives grace time.</p></div>
+<div class="mini"><h4>3D — Incident dedup</h4><p>Merge repeated frames into one incident. Add cooldowns so a zone breach does not produce hundreds of notifications.</p></div>
+</div>
+<div class="decision"><strong>Design choice:</strong> make thresholds per rule and per camera. Do not scatter magic numbers through Python code.</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S4 — Evidence and event clips</h3><span class="badge p1">OPERATIONS</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>4A — Rolling frame buffer</h4><p>Maintain a bounded in-memory or short-term disk buffer per camera. Its size must be configurable.</p></div>
+<div class="mini"><h4>4B — Clip writer</h4><p>When an incident opens, preserve pre-event frames and continue capturing post-event frames, then encode a bounded clip asynchronously.</p></div>
+<div class="mini"><h4>4C — Storage abstraction</h4><p>Define <code>EvidenceStore</code> so local filesystem storage can later become object storage without API changes.</p></div>
+<div class="mini"><h4>4D — Secure media access</h4><p>Serve clips through authorized endpoints. Do not expose arbitrary filesystem paths or public directories.</p></div>
+</div>
+<div class="exit"><strong>Exit:</strong> every test incident can be opened, watched and traced back to its source camera/time.</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S5 — Person-down detection</h3><span class="badge p1">BEHAVIOR</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>5A — Define the event operationally</h4><p>Write the actual rule before coding: what counts as down, how long it must persist, and which states should be excluded.</p></div>
+<div class="mini"><h4>5B — Baseline geometry</h4><p>Use bounding-box aspect ratio, center movement and persistence as a baseline. Measure failure cases instead of assuming the heuristic works.</p></div>
+<div class="mini"><h4>5C — Optional pose model</h4><p>If geometry is weak, test pose landmarks or another pretrained approach. Compare complexity and false alerts.</p></div>
+<div class="mini"><h4>5D — Scenario evaluation</h4><p>Test standing, sitting, crouching, intentional lying down, actual fall, partial occlusion and multiple people.</p></div>
+</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S6 — Physical altercation</h3><span class="badge p1">HARD</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>6A — Pair features</h4><p>For nearby tracked people, calculate center distance, relative velocity, movement magnitude and short-window changes.</p></div>
+<div class="mini"><h4>6B — Temporal rule</h4><p>Use a rolling time window rather than frame-by-frame decisions. Require persistence and multiple signals.</p></div>
+<div class="mini"><h4>6C — Scene calibration</h4><p>Define per-camera thresholds. What is suspicious in a corridor may be normal in a sports area.</p></div>
+<div class="mini"><h4>6D — Evidence review</h4><p>Always attach the clip and show the time window used by the rule. The UI should make it clear this is a potential altercation event.</p></div>
+</div>
+<div class="callout danger"><strong>Do not overclaim:</strong> unless evaluated on representative footage, call this “potential physical altercation” rather than implying perfect understanding of human activity.</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S7 — Abnormal crowd movement</h3><span class="badge p1">ANALYTICS</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>7A — Crowd features</h4><p>Aggregate active track count, mean speed, direction dispersion, pair distances and zone density.</p></div>
+<div class="mini"><h4>7B — Baseline</h4><p>Store short-term baselines per camera and time window. A campus entrance at 8 AM is different from a parking area at midnight.</p></div>
+<div class="mini"><h4>7C — Anomaly score</h4><p>Start with a transparent weighted score rather than a black-box model. Log each feature contributing to the score.</p></div>
+<div class="mini"><h4>7D — Threshold tuning</h4><p>Replay known clips and inspect false alerts. Make the score and thresholds configurable.</p></div>
+</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S8 — Weapon detection</h3><span class="badge p0">DATA / MODEL</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>8A — Baseline model audit</h4><p>Check whether a pretrained model supports the needed weapon classes. Measure failures on representative footage before deciding on fine-tuning.</p></div>
+<div class="mini"><h4>8B — Dataset design</h4><p>Build a labeled dataset split by scene, source and time. Avoid near-duplicate frames leaking between train and test.</p></div>
+<div class="mini"><h4>8C — Fine-tune if necessary</h4><p>Only after baseline failure is understood. Track model version, dataset version and hyperparameters.</p></div>
+<div class="mini"><h4>8D — Temporal confirmation</h4><p>Require evidence across a short window when appropriate; reduce single-frame alerts caused by noise or partial views.</p></div>
+</div>
+<div class="exit"><strong>Exit:</strong> report measured precision/recall or another justified evaluation on a held-out set; do not use training-set accuracy as the headline result.</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S9 — Operator dashboard and concurrency</h3><span class="badge p0">PRODUCT</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>9A — Incident list</h4><p>Pagination, filters, sorting, server-side queries. Never load all incidents into the browser.</p></div>
+<div class="mini"><h4>9B — Review workflow</h4><p>Open → review evidence → verify/dismiss. Prevent stale actions with optimistic concurrency or row-version checks.</p></div>
+<div class="mini"><h4>9C — Two-user test</h4><p>Simulate two operators reviewing the same incident. The second action must be handled predictably.</p></div>
+<div class="mini"><h4>9D — Real-time updates</h4><p>Polling is acceptable first. Add WebSocket/SSE only after the core workflow is stable.</p></div>
+</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S10 — Security, RBAC, audit and privacy</h3><span class="badge p0">REQUIRED</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>10A — Authentication</h4><p>Implement credential validation, password hashing, session/token policy and logout/revocation strategy appropriate to the deployment.</p></div>
+<div class="mini"><h4>10B — Authorization</h4><p>Enforce role checks server-side. UI hiding is not authorization.</p></div>
+<div class="mini"><h4>10C — Audit log</h4><p>Record logins, incident views where policy requires, verification/dismissal, camera changes, rule changes and administrative actions.</p></div>
+<div class="mini"><h4>10D — Privacy zones</h4><p>Persist camera privacy polygons and verify masking behavior in stored evidence. Define whether masking occurs before inference, after inference, or both for each policy.</p></div>
+</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S11 — RTSP and multi-camera execution</h3><span class="badge p0">SCALE</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>11A — RTSP source</h4><p>Implement connection lifecycle, reconnect with exponential backoff, stream timeout detection and bounded queues.</p></div>
+<div class="mini"><h4>11B — Per-camera worker state</h4><p>Isolate errors and resource accounting per camera. Each stream should expose health metrics.</p></div>
+<div class="mini"><h4>11C — Backpressure</h4><p>Choose a deliberate policy: drop old frames and process recent frames rather than allowing an unbounded queue to consume RAM.</p></div>
+<div class="mini"><h4>11D — Camera fleet test</h4><p>Simulate several streams using repeated files or generated RTSP sources. Measure throughput, memory and recovery after a stream failure.</p></div>
+</div>
+<div class="callout"><strong>Key production rule:</strong> the system should fail locally. If Camera 4 dies, Cameras 1–3 and 5–N should keep operating.</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S12 — Reliability, load and failure hardening</h3><span class="badge p0">PRODUCTION GATE</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>12A — API load</h4><p>Measure concurrent reads, incident list filtering, media access and auth operations. Look for slow queries and connection pool exhaustion.</p></div>
+<div class="mini"><h4>12B — Worker saturation</h4><p>Measure GPU memory, inference latency, queue depth, dropped frames and event latency as camera count increases.</p></div>
+<div class="mini"><h4>12C — Failure injection</h4><p>Kill/restart DB, stop a camera, fill the media disk, break notification credentials, restart workers and verify graceful recovery.</p></div>
+<div class="mini"><h4>12D — Data integrity</h4><p>Verify incidents are not duplicated after retries and review actions are not applied twice.</p></div>
+</div>
+<div class="exit"><strong>Exit:</strong> known capacity limit, known failure behavior, reproducible load test and documented recovery procedure.</div>
+</div></div>
+
+<div class="sprint"><div class="sprint-head"><h3>S13 — Release and handover</h3><span class="badge p0">SHIP</span></div><div class="sprint-body">
+<div class="sprint-grid">
+<div class="mini"><h4>13A — Staging environment</h4><p>Fresh environment with representative data and cameras. No developer-only paths.</p></div>
+<div class="mini"><h4>13B — Production config</h4><p>Secrets, database, storage path, model artifact versions, allowed origins, admin bootstrap and log rotation.</p></div>
+<div class="mini"><h4>13C — Runbook</h4><p>Start/stop, health checks, camera troubleshooting, disk cleanup, incident recovery, backup/restore and model rollback.</p></div>
+<div class="mini"><h4>13D — Demo protocol</h4><p>Prepare deterministic clips for every threat type. Every demo should have expected output, reset steps and known limitations.</p></div>
+</div>
+<div class="exit"><strong>Final exit:</strong> a clean installation, full smoke test and operator walkthrough can be completed without the original developer explaining hidden steps.</div>
+</div></div>
+
+</section>
+
+<section id="9">
+<h2>9. Testing and CV evaluation</h2>
+<h3>9.1 Test pyramid</h3>
+<div class="grid3">
+<div class="card"><h4>Unit</h4><p>Geometry, rule evaluation, time windows, deduplication, serializers, permissions, state transitions.</p></div>
+<div class="card"><h4>Integration</h4><p>Worker → event bus → DB → API → media storage. Test real transactions and failure behavior.</p></div>
+<div class="card"><h4>End-to-end</h4><p>Known clip → expected incident → evidence → dashboard → verify/dismiss → audit record.</p></div>
+</div>
+<h3>9.2 Computer-vision evaluation</h3>
+<p>Do not evaluate the project only by “the demo looked good.” Create a small, versioned benchmark set.</p>
+<ul>
+<li><strong>Positive cases:</strong> real target behavior.</li>
+<li><strong>Hard negatives:</strong> visually similar but non-threat behavior.</li>
+<li><strong>Edge cases:</strong> occlusion, lighting, crowding, camera motion, low resolution.</li>
+<li><strong>Different cameras:</strong> avoid testing only on footage used during development.</li>
+<li><strong>Temporal metrics:</strong> event latency, duplicate events per incident, time-to-clear after a false candidate.</li>
+</ul>
+<h3>9.3 Metrics by layer</h3>
+<div class="table-wrap"><table>
+<tr><th>Layer</th><th>Metrics</th></tr>
+<tr><td>Detector</td><td>Precision, recall, class-wise AP/mAP where appropriate, inference latency.</td></tr>
+<tr><td>Tracker</td><td>ID stability, lost-track rate, identity switches in the benchmark set.</td></tr>
+<tr><td>Event rules</td><td>Event precision, event recall, average duplicates per real incident, detection-to-event latency.</td></tr>
+<tr><td>System</td><td>Camera uptime, worker restarts, queue depth, error rate, API latency, DB latency.</td></tr>
+<tr><td>Operator workflow</td><td>Time to open evidence, verify action success, notification delivery latency.</td></tr>
+</table></div>
+<h3>9.4 What not to claim</h3>
+<ul>
+<li>Do not claim “real-time” without measuring end-to-end latency under load.</li>
+<li>Do not claim “production-ready” without failure tests and multi-user testing.</li>
+<li>Do not claim “weapon detection accuracy” from a handful of demo clips.</li>
+<li>Do not present proposed pilot targets from the concept document as achieved results.</li>
+</ul>
+</section>
+
+<section id="10">
+<h2>10. Production hardening checklist</h2>
+<div class="grid">
+<div class="card"><h4>Concurrency</h4><ul><li>DB connection pool limits</li><li>Paginated queries</li><li>Background jobs for long work</li><li>Idempotent retries</li><li>Optimistic concurrency for incident review</li></ul></div>
+<div class="card"><h4>Video reliability</h4><ul><li>Reconnect logic</li><li>Frame queue bounds</li><li>Camera-specific watchdog</li><li>Decode failure handling</li><li>Disk-space monitoring</li></ul></div>
+<div class="card"><h4>Security</h4><ul><li>Password hashing</li><li>RBAC server-side</li><li>Secret management</li><li>Input validation</li><li>Media authorization</li></ul></div>
+<div class="card"><h4>Observability</h4><ul><li>Structured logs</li><li>Metrics</li><li>Health endpoints</li><li>Per-camera status</li><li>Error correlation IDs</li></ul></div>
+<div class="card"><h4>Data safety</h4><ul><li>Retention enforcement</li><li>Backup strategy</li><li>Restore test</li><li>Audit records</li><li>Migration discipline</li></ul></div>
+<div class="card"><h4>Release safety</h4><ul><li>Versioned model artifacts</li><li>Config validation on startup</li><li>Rollback path</li><li>Smoke test</li><li>Demo reset script</li></ul></div>
+</div>
+<h3>10.1 The most important failure modes</h3>
+<div class="table-wrap"><table>
+<tr><th>Failure</th><th>Bad behavior</th><th>Required behavior</th></tr>
+<tr><td>Camera disconnects</td><td>Worker crashes endlessly</td><td>Mark camera unhealthy, retry with backoff, keep rest of fleet alive.</td></tr>
+<tr><td>GPU saturation</td><td>Memory grows without bound</td><td>Bound queues, drop stale frames, expose overload metrics.</td></tr>
+<tr><td>DB unavailable</td><td>API throws random stack traces</td><td>Readiness fails; health remains observable; retry policy is bounded.</td></tr>
+<tr><td>Notification provider fails</td><td>Incident creation fails</td><td>Incident persists; notification is retried and shown as failed.</td></tr>
+<tr><td>User double-clicks verify</td><td>Two conflicting records</td><td>Idempotent action / state check.</td></tr>
+<tr><td>Disk fills</td><td>Whole application crashes</td><td>Stop non-essential evidence capture, raise critical health signal, retain application control.</td></tr>
+<tr><td>Model load fails</td><td>API never starts</td><td>Separate readiness state and clear error; operator can see missing model artifact.</td></tr>
+</table></div>
+</section>
+
+<section id="11">
+<h2>11. Deployment strategy</h2>
+<h3>11.1 Development</h3>
+<pre>
+Developer machine
+├─ Python environment
+├─ React dev server
+├─ Postgres container
+├─ Redis / queue container
+└─ local media directory
+</pre>
+<h3>11.2 Staging</h3>
+<pre>
+Single Linux host
+├─ reverse proxy
+├─ frontend
+├─ API
+├─ CV worker
+├─ evidence worker
+├─ notification worker
+├─ PostgreSQL
+├─ queue / cache
+└─ persistent media + backups
+</pre>
+<h3>11.3 Production direction</h3>
+<p>Start as a single-node deployment only if the actual pilot size allows it. The architecture must expose resource usage so the company can later decide whether CV inference needs a dedicated GPU node, whether the DB should move to a managed service, and whether the dashboard/API should scale separately.</p>
+<h3>11.4 Backup and restore</h3>
+<ul>
+<li>Database backup schedule must be explicit.</li>
+<li>Important configuration must be backed up.</li>
+<li>Evidence storage retention and backup must be treated separately from metadata backup.</li>
+<li>A backup that has never been restored is an assumption, not a recovery plan.</li>
+</ul>
+<h3>11.5 Environment separation</h3>
+<p>Keep development, staging and production values separate. Model versions and rule versions should be explicit, so an incident can be traced to the software/model configuration that generated it.</p>
+</section>
+
+<section id="12">
+<h2>12. Learning plan embedded inside the build</h2>
+<p>The objective is not to finish a CV curriculum. The objective is to reach the point where you can explain, debug and modify the system without blindly depending on generated code.</p>
+<div class="table-wrap"><table>
+<tr><th>When</th><th>Learn</th><th>Proof of understanding</th></tr>
+<tr><td>S0–S1</td><td>Frames, tensors, preprocessing, detector outputs, confidence, boxes</td><td>Explain every field in your detection schema and visualize it.</td></tr>
+<tr><td>S2</td><td>IoU, tracking, association, track lifecycle</td><td>Explain why IDs change and how your tracker recovers.</td></tr>
+<tr><td>S3</td><td>Point-in-polygon, temporal state, hysteresis, cooldown</td><td>Change a zone rule without asking an AI tool to design it.</td></tr>
+<tr><td>S5–S7</td><td>Temporal behavior, features, aggregation, baseline/anomaly concepts</td><td>List the signals used by the rule and the expected false positives.</td></tr>
+<tr><td>S8</td><td>Datasets, train/val/test, leakage, fine-tuning, precision/recall</td><td>Produce a held-out evaluation report.</td></tr>
+<tr><td>S11–S12</td><td>Throughput, backpressure, concurrency, GPU/CPU profiling</td><td>Explain where latency comes from and what happens when load doubles.</td></tr>
+<tr><td>S10–S13</td><td>Auth, RBAC, audit, deployment, observability</td><td>Demonstrate one failure and explain how the runbook handles it.</td></tr>
+</table></div>
+<h3>12.1 How to use AI without outsourcing engineering judgment</h3>
+<div class="grid">
+<div class="card"><h4>Good use</h4><p>Ask for implementation alternatives, test cases, edge cases, refactoring suggestions, explanations of unfamiliar APIs and code review.</p></div>
+<div class="card"><h4>Bad use</h4><p>Paste a vague requirement and ship the generated architecture without understanding state, failure modes, data ownership or model limitations.</p></div>
+</div>
+</section>
+
+<section id="13">
+<h2>13. Risk register</h2>
+<div class="table-wrap"><table>
+<tr><th>Risk</th><th>Likelihood</th><th>Impact</th><th>Early warning</th><th>Response</th></tr>
+<tr><td>CV accuracy is worse than expected</td><td>High</td><td>High</td><td>Demo works only on curated clips</td><td>Freeze app architecture; improve dataset/logic; reduce claims, not tests.</td></tr>
+<tr><td>Too much time spent learning</td><td>High</td><td>High</td><td>Several days with no integrated artifact</td><td>Return to vertical slice; time-box study; build a tiny experiment.</td></tr>
+<tr><td>GPU insufficient</td><td>Medium</td><td>High</td><td>Latency and queue depth grow with cameras</td><td>Lower inference rate/resolution; use smaller model; measure capacity; document limit.</td></tr>
+<tr><td>Weapon module becomes a research project</td><td>High</td><td>High</td><td>Dataset labeling dominates schedule</td><td>Ship baseline first; isolate fine-tuning; keep adapter boundary.</td></tr>
+<tr><td>Single process crashes take down all cameras</td><td>Medium</td><td>High</td><td>One exception stops other streams</td><td>Per-camera isolation, supervisor/watchdog, bounded worker tasks.</td></tr>
+<tr><td>Multi-user issues</td><td>Medium</td><td>High</td><td>Tests assume one browser</td><td>Add concurrent-review test and server-side authorization early.</td></tr>
+<tr><td>Evidence storage grows without bound</td><td>High</td><td>High</td><td>Disk use increases faster than expected</td><td>Retention policy, quota, monitoring, cleanup jobs, storage abstraction.</td></tr>
+<tr><td>Demo differs from production</td><td>Medium</td><td>High</td><td>Developer-only paths / local credentials</td><td>Staging build before final demo; clean install test.</td></tr>
+</table></div>
+</section>
+
+<section id="14">
+<h2>14. Definition of Done</h2>
+<h3>14.1 Feature-level DoD</h3>
+<ul>
+<li>Feature has a clear input, output and failure behavior.</li>
+<li>Configuration is externalized; no hidden constants for policy thresholds.</li>
+<li>Unit tests cover core logic.</li>
+<li>At least one end-to-end scenario exists.</li>
+<li>Logs identify the camera/event/request involved.</li>
+<li>UI exposes status and error states.</li>
+<li>Documentation states known limitations.</li>
+</ul>
+<h3>14.2 Release-level DoD</h3>
+<div class="kpi">
+<div class="card"><strong>All target modules wired</strong><span>Every proposed event type has an implementation path.</span></div>
+<div class="card"><strong>Evidence attached</strong><span>Incidents have usable clips/snapshots.</span></div>
+<div class="card"><strong>Human review enforced</strong><span>Serious alerts follow the intended verification workflow.</span></div>
+<div class="card"><strong>Failure behavior known</strong><span>Load and failure tests produce documented limits.</span></div>
+</div>
+<h3>14.3 Demo acceptance checklist</h3>
+<ol>
+<li>Start the stack from a clean environment.</li>
+<li>Show camera health.</li>
+<li>Run one deterministic clip for each detection module.</li>
+<li>Show incident generation and evidence clip.</li>
+<li>Verify one incident as Operator A.</li>
+<li>Show the audit record.</li>
+<li>Attempt an unauthorized action as a lower-privilege user.</li>
+<li>Disconnect one camera and show the rest of the system remains healthy.</li>
+<li>Show the system health page/logs and explain measured limitations.</li>
+</ol>
+</section>
+
+<section id="15">
+<h2>15. Fast-track variants when the deadline changes</h2>
+<h3>15.1 If you have roughly 2 weeks</h3>
+<p>Do not pretend all six CV modules are equally mature. Ship the complete application around detection, tracking, restricted zones, loitering and evidence; implement the remaining modules behind clean interfaces with deterministic demo scenarios and clearly labeled maturity. Prioritize end-to-end reliability over model sophistication.</p>
+<h3>15.2 If you have roughly 4 weeks</h3>
+<p>Complete the full application, RTSP, tracking, zones, loitering, person-down and at least one advanced behavioral module. Add a baseline weapon module and a proper evaluation set. Finish auth, RBAC, audit, privacy and load testing before polishing the UI.</p>
+<h3>15.3 If you have roughly 6–8 weeks</h3>
+<p>Complete the whole architecture above, then spend the remaining time improving dataset quality, event thresholds, camera-specific calibration, performance, operator workflow and deployment reliability. This is the point at which model fine-tuning becomes worth the investment if the baseline is clearly insufficient.</p>
+<h3>15.4 How to compress without breaking the project</h3>
+<table class="table-wrap"><tr><th>Compress</th><th>Do not compress</th></tr>
+<tr><td>UI polish, real-time push, advanced integrations, elaborate admin screens</td><td>Authentication, authorization, evidence access control, error handling</td></tr>
+<tr><td>Model size / inference frequency</td><td>Bounded queues and overload behavior</td></tr>
+<tr><td>Number of cameras in the demo</td><td>Camera isolation and reconnection behavior</td></tr>
+<tr><td>Number of training experiments</td><td>Evaluation discipline and held-out testing</td></tr>
+<tr><td>External integrations</td><td>Internal event/notification abstraction</td></tr>
+</table>
+<h3>15.5 Recommended first working session</h3>
+<ol>
+<li>Create the repository and directory structure.</li>
+<li>Containerize the database and local infrastructure.</li>
+<li>Create the <code>VideoSource</code>, <code>Detection</code>, <code>Incident</code> and <code>Evidence</code> interfaces/types.</li>
+<li>Run one MP4 through a pretrained detector.</li>
+<li>Persist one test incident.</li>
+<li>Display it in a minimal dashboard.</li>
+<li>Verify/dismiss it and write the audit event.</li>
+</ol>
+<p><strong>That first slice is the foundation.</strong> Once it works, every new CV capability becomes an incremental module instead of another rewrite.</p>
+</section>
+
+<footer class="footer">
+<p><strong>Source boundary:</strong> The product scope and proposal terminology in this document are based on the supplied “AI VIDEO THREAT RECOGNITION — Concept proposal for IT & Security teams.” Architecture, sprint sequencing, engineering trade-offs, testing strategy and implementation choices are recommendations for a fast, free internship build; they are not claimed to be specified by the proposal.</p>
+<p>Recommended status labels for the project: <code>planned</code>, <code>prototype</code>, <code>integrated</code>, <code>evaluated</code>, <code>staged</code>, <code>released</code>. Never use “production-ready” as a status until the hardening gates have actually passed.</p>
+</footer>
+</main>
+</div>
+</body>
+</html>
