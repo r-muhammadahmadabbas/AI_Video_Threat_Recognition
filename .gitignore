@@ -39,6 +39,11 @@ build/
 .DS_Store
 Thumbs.db
 
+# Model weights (downloaded at runtime, never committed)
+*.pt
+*.onnx
+*.engine
+
 # Project specific
 backend/data/
 backend/media/

@@ -61,7 +61,7 @@ class RedisSettings(BaseSettings):
 class AuthSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="AUTH_", extra="ignore")
 
-    secret_key: str = Field(..., description="Must be set via environment variable")
+    secret_key: str = "dev-secret-key-change-in-production-min-32-chars"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 30
     refresh_token_expire_days: int = 7
@@ -166,13 +166,6 @@ class AppSettings(BaseSettings):
     notification: NotificationSettings = Field(default_factory=NotificationSettings)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
     retention: RetentionSettings = Field(default_factory=RetentionSettings)
-
-    @field_validator("auth", mode="before")
-    @classmethod
-    def _validate_auth(cls, v):
-        if isinstance(v, dict) and "secret_key" not in v:
-            v["secret_key"] = "dev-secret-change-in-production"
-        return v
 
     @property
     def use_sqlite(self) -> bool:
