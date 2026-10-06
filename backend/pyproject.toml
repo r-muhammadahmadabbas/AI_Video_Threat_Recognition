@@ -47,7 +47,9 @@ dev = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-select = ["E", "F", "I", "UP", "B", "C4", "PT", "T20", "W", "N", "S", "PL", "TRY", "PD", "RUF", "RET", "SIM", "TID", "ARG", "PTH", "ERA", "FUR", "LOG", "PIE", "NPY", "ICN", "PERF", "TCH", "INT"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "C4", "PT", "T20", "W", "N", "S", "PL", "TRY", "PD", "RUF", "RET", "SIM", "TID", "ARG", "PTH", "ERA", "FURB", "LOG", "PIE", "NPY", "ICN", "PERF", "TC", "INT"]
 ignore = ["S101", "PLR2004", "TRY003", "PLR0913", "PLR0915"]
 fixable = ["ALL"]
 unfixable = ["T20", "S101", "RUF100"]

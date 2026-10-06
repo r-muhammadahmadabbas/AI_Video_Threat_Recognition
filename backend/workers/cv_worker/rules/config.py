@@ -17,6 +17,21 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+def _require_ordered_margins(entry_margin: float, exit_margin: float) -> None:
+    """Shared guard: the exit test must never be looser than the entry test.
+
+    If ``exit_margin > entry_margin`` the two rings cross and the hysteresis
+    band inverts, which makes a subject on the boundary flicker between inside
+    and outside on successive frames - exactly the failure the band exists to
+    prevent.
+    """
+    if exit_margin > entry_margin:
+        raise ValueError(
+            "exit_margin must be less than or equal to entry_margin, otherwise "
+            "the hysteresis band inverts and a subject on the boundary flickers"
+        )
+
+
 class ZoneEntryConfig(BaseModel):
     """Thresholds for restricted-zone entry.
 
@@ -36,6 +51,11 @@ class ZoneEntryConfig(BaseModel):
         point: which point of the bounding box to test against the polygon.
             ``bottom_center`` is the default because it approximates where the
             subject's feet are, which is what an operator judges as "inside".
+        require_min_frames: consecutive frames inside before dwell time counts.
+        entry_margin/exit_margin: hysteresis multipliers used to derive this
+            rule's containment rings, exactly as for restricted-zone entry. Every
+            rule needs them because every rule must decide a stable inside and
+            outside state before it can judge duration or breach.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -48,12 +68,8 @@ class ZoneEntryConfig(BaseModel):
     point: Literal["bottom_center", "center"] = "bottom_center"
 
     @model_validator(mode="after")
-    def _exit_must_be_tighter_than_entry(self) -> "ZoneEntryConfig":
-        if self.exit_margin > self.entry_margin:
-            raise ValueError(
-                "exit_margin must be less than or equal to entry_margin, otherwise "
-                "the hysteresis band inverts and a subject on the boundary flickers"
-            )
+    def _exit_must_be_tighter_than_entry(self) -> ZoneEntryConfig:
+        _require_ordered_margins(self.entry_margin, self.exit_margin)
         return self
 
 
@@ -83,6 +99,13 @@ class LoiterConfig(BaseModel):
     cooldown_seconds: float = Field(default=300.0, ge=0.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
     require_min_frames: int = Field(default=2, ge=1)
+    entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
+    exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
+
+    @model_validator(mode="after")
+    def _exit_must_be_tighter_than_entry(self) -> LoiterConfig:
+        _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
 
     def exit_is_tolerated(self, exit_seconds: float) -> bool:
         """Whether an exit of this length keeps the residency clock alive.
@@ -111,7 +134,7 @@ class ZoneConfig(BaseModel):
     reference_height: int | None = Field(default=None, gt=0)
 
     @model_validator(mode="after")
-    def _pixel_space_needs_reference_size(self) -> "ZoneConfig":
+    def _pixel_space_needs_reference_size(self) -> ZoneConfig:
         if self.coordinate_space == "pixel" and (
             self.reference_width is None or self.reference_height is None
         ):

@@ -85,6 +85,16 @@ class TestLoiterConfig:
         cfg = LoiterConfig(grace_seconds=600.0)
         assert cfg.exit_is_tolerated(300.0) is True
 
+    def test_loitering_carries_the_same_hysteresis_margins_as_entry(self):
+        # Every rule needs a stable inside/outside decision before it can judge
+        # duration, so loitering must expose margins too.
+        cfg = LoiterConfig()
+        assert cfg.entry_margin > cfg.exit_margin
+
+    def test_rejects_inverted_hysteresis(self):
+        with pytest.raises(ValidationError, match="hysteresis band inverts"):
+            LoiterConfig(entry_margin=0.9, exit_margin=1.1)
+
 
 class TestZoneConfig:
     def test_normalized_needs_no_reference_size(self):

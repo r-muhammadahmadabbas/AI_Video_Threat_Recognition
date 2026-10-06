@@ -15,7 +15,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable, Sequence
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable, Sequence
 
 Point = tuple[float, float]
 
@@ -41,7 +44,7 @@ class Polygon:
             )
 
     @classmethod
-    def from_vertices(cls, vertices: Iterable[Sequence[float]]) -> "Polygon":
+    def from_vertices(cls, vertices: Iterable[Sequence[float]]) -> Polygon:
         points = [(float(v[0]), float(v[1])) for v in vertices]
 
         if len(points) > 1 and _almost_equal(points[0], points[-1]):
@@ -59,17 +62,17 @@ class Polygon:
     @classmethod
     def from_normalized(
         cls, vertices: Iterable[Sequence[float]], width: int, height: int
-    ) -> "Polygon":
+    ) -> Polygon:
         """Build a pixel-space polygon from normalized ``[0, 1]`` vertices."""
         scaled = [(float(v[0]) * width, float(v[1]) * height) for v in vertices]
         return cls.from_vertices(scaled)
 
     @classmethod
-    def from_bbox(cls, x1: float, y1: float, x2: float, y2: float) -> "Polygon":
+    def from_bbox(cls, x1: float, y1: float, x2: float, y2: float) -> Polygon:
         """Axis-aligned rectangle, mostly for tests and simple admin setup."""
         return cls.from_vertices([(x1, y1), (x2, y1), (x2, y2), (x1, y2)])
 
-    def to_normalized(self, width: int, height: int) -> "Polygon":
+    def to_normalized(self, width: int, height: int) -> Polygon:
         if width <= 0 or height <= 0:
             raise InvalidPolygonError(
                 f"frame size must be positive, got {width}x{height}"
@@ -78,7 +81,7 @@ class Polygon:
             [(x / width, y / height) for x, y in self.vertices]
         )
 
-    def to_pixels(self, width: int, height: int) -> "Polygon":
+    def to_pixels(self, width: int, height: int) -> Polygon:
         """Scale a normalized polygon up to a concrete frame size."""
         if width <= 0 or height <= 0:
             raise InvalidPolygonError(
@@ -88,7 +91,7 @@ class Polygon:
             [(x * width, y * height) for x, y in self.vertices]
         )
 
-    def scaled_about_centroid(self, factor: float) -> "Polygon":
+    def scaled_about_centroid(self, factor: float) -> Polygon:
         """Scale the ring towards its centroid.
 
         ``factor < 1`` shrinks the zone, ``factor > 1`` expands it. This is the

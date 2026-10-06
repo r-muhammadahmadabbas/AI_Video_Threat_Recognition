@@ -8,9 +8,13 @@ import numpy as np
 import pytest
 
 from app.config import settings
+from workers.cv_worker.detector import Detection
 from workers.cv_worker.main import CVWorker
+from workers.cv_worker.rules.base import Zone
+from workers.cv_worker.rules.config import ZoneConfig, ZoneEntryConfig
+from workers.cv_worker.rules.geometry import Polygon
+from workers.cv_worker.rules.restricted_zone import ZoneEntryRule
 from workers.cv_worker.tracker import ByteTrackTracker
-from workers.cv_worker.video_source import Frame
 
 
 def _create_test_video(path: str, frames: int = 5, width: int = 320, height: int = 240) -> None:
@@ -308,3 +312,138 @@ def _iter_all_frames(worker):
         if frame is None:
             return
         yield frame
+
+
+class TestCVWorkerRuleEngine:
+    """End-to-end: detections -> tracks -> zone rules -> one incident."""
+
+    @staticmethod
+    def _zone():
+        # 320x240 clip, zone occupies the middle of the frame.
+        return Zone(
+            zone_id="zone_1",
+            name="Restricted Area",
+            polygon=Polygon.from_bbox(50, 50, 250, 200),
+            config=ZoneConfig(
+                coordinate_space="pixel",
+                reference_width=320,
+                reference_height=240,
+            ),
+        )
+
+    @staticmethod
+    def _rule(**overrides):
+        kwargs = {
+            "rule_id": "rule_entry",
+            "rule_name": "No entry to server room",
+            "zone_id": "zone_1",
+            "zone_name": "Restricted Area",
+            "severity": "high",
+            "config": ZoneEntryConfig(min_frames_in_zone=1, cooldown_seconds=60.0),
+        }
+        kwargs.update(overrides)
+        return ZoneEntryRule(**kwargs)
+
+    @staticmethod
+    def _detection(bbox, confidence: float = 0.9):
+        return Detection(
+            bbox=bbox, confidence=confidence, class_id=0, class_name="person"
+        )
+
+    # bottom_center lands at (150, 160), inside the zone's 50..250 x 50..200.
+    INSIDE = (100.0, 60.0, 200.0, 160.0)
+    # bottom_center lands at (280, 160), past the zone's right edge.
+    OUTSIDE = (230.0, 60.0, 330.0, 160.0)
+
+    @pytest.fixture
+    def rule_video(self):
+        """Long enough that frame skipping still selects several frames.
+
+        Frame selection steps by ``round(source_fps / inference_target_fps)``,
+        so a clip shorter than that step yields no processed frames at all and
+        would silently assert nothing.
+        """
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            path = f.name
+        _create_test_video(path, frames=60)
+        yield path
+        _remove_video(path)
+
+    @staticmethod
+    def _worker(sample_video, detection, zones=None, rules=None):
+        mock_detector = MagicMock()
+        mock_detector.detect.return_value = [detection]
+
+        worker = CVWorker(
+            source_id="test_cam",
+            source_path=sample_video,
+            display=False,
+            zones=zones,
+            rules=rules,
+        )
+        worker._video_source = worker._create_source()
+        worker._detector = mock_detector
+        worker._tracker = ByteTrackTracker(frame_rate=30.0)
+        return worker
+
+    def test_no_rules_leaves_engine_unbuilt(self, sample_video):
+        worker = self._worker(sample_video, self._detection(self.INSIDE))
+        worker._process_frame(worker._video_source.read())
+        assert worker._rule_engine is None
+        assert worker._emitted_triggers == 0
+
+    def test_engine_built_lazily_at_frame_size(self, sample_video):
+        worker = self._worker(
+            sample_video,
+            self._detection(self.INSIDE),
+            zones=[self._zone()],
+            rules=[self._rule()],
+        )
+        worker._process_frame(worker._video_source.read())
+
+        assert worker._rule_engine is not None
+        assert worker._rule_engine.frame_width == 320
+        assert worker._rule_engine.frame_height == 240
+
+    def test_single_incident_despite_repeated_frames(self, rule_video):
+        worker = self._worker(
+            rule_video,
+            self._detection(self.INSIDE),
+            zones=[self._zone()],
+            rules=[self._rule()],
+        )
+
+        for frame in _iter_all_frames(worker):
+            if worker._should_process(frame):
+                worker._process_frame(frame)
+
+        # Every processed frame saw the same subject inside the same zone, but
+        # that is one incident, not one per frame.
+        assert worker._emitted_triggers == 1
+
+    def test_person_outside_zone_is_silent(self, rule_video):
+        worker = self._worker(
+            rule_video,
+            self._detection(self.OUTSIDE),
+            zones=[self._zone()],
+            rules=[self._rule()],
+        )
+        for frame in _iter_all_frames(worker):
+            if worker._should_process(frame):
+                worker._process_frame(frame)
+
+        assert worker._emitted_triggers == 0
+
+    def test_stop_resets_rule_engine(self, sample_video):
+        worker = self._worker(
+            sample_video,
+            self._detection(self.INSIDE),
+            zones=[self._zone()],
+            rules=[self._rule()],
+        )
+        worker._process_frame(worker._video_source.read())
+        assert worker._emitted_triggers == 1
+
+        worker.stop()
+        assert worker._rule_engine.zone_ids == ["zone_1"]
+        assert worker._rule_engine._last_incident == {}

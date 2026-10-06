@@ -4,11 +4,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from workers.cv_worker.rules.config import ZoneConfig
-from workers.cv_worker.rules.geometry import Polygon
-from workers.cv_worker.tracker import TrackedObject
+
+if TYPE_CHECKING:
+    from workers.cv_worker.rules.geometry import Polygon
+    from workers.cv_worker.tracker import TrackedObject
 
 
 @dataclass(frozen=True)
@@ -76,15 +78,41 @@ class BehaviorRule(ABC):
 
     Concrete rules declare their identity (``rule_id``, ``rule_name``) as
     dataclass fields. The ABC deliberately does not declare them as abstract
-    properties, because ``dataclasses`` resolves a field default by attribute
+    *properties*, because ``dataclasses`` resolves a field default by attribute
     lookup and would pick up an inherited property object as that default.
+
+    The bare annotations below add no class attribute and create no dataclass
+    field (``BehaviorRule`` is not itself a dataclass, so ``dataclasses`` never
+    reads them); they exist so static checkers see the identity every rule has.
     """
+
+    rule_id: str
+    rule_name: str
+    zone_id: str
+    config: Any
 
     @abstractmethod
     def update(
-        self, observations: list[TrackObservation], timestamp: float
+        self, observations: list[TrackObservation], timestamp: float, dt: float = 0.0
     ) -> list[RuleTrigger]:
-        """Advance the rule's temporal state and return any new triggers."""
+        """Advance the rule's temporal state and return any new triggers.
+
+        ``timestamp`` is the capture time of the frame; ``dt`` is the seconds
+        elapsed since the previous frame. Time-driven rules accumulate from
+        ``dt`` rather than ``timestamp`` so that replaying a clip offline
+        reproduces identical durations on every run.
+        """
+
+    def hysteresis_margins(self) -> tuple[float, float]:
+        """``(entry_margin, exit_margin)`` used to derive this rule's rings.
+
+        Concrete by default: every rule config exposes the same two fields,
+        because every rule needs a stable inside/outside decision before it can
+        judge duration or breach. Rules whose config omits them would raise, so
+        this exists as one place to read them rather than duplicating the lookup.
+        """
+        config = self.config
+        return float(config.entry_margin), float(config.exit_margin)
 
     @abstractmethod
     def reset(self) -> None:

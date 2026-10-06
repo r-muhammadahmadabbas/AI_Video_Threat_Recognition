@@ -1,16 +1,15 @@
 import signal
-import sys
 import time
-from typing import Optional
 
 import cv2
-import numpy as np
 
 from app.config import settings
 from app.logging import get_logger
 from workers.cv_worker.detector import YOLO26Detector
 from workers.cv_worker.event_adapter import PersonPresenceAdapter
-from workers.cv_worker.tracker import ByteTrackTracker, TrackSnapshot, Tracker
+from workers.cv_worker.rules.base import BehaviorRule, Zone
+from workers.cv_worker.rules.engine import RuleEngine
+from workers.cv_worker.tracker import ByteTrackTracker, Tracker, TrackSnapshot
 from workers.cv_worker.video_source import Frame, MP4VideoSource, VideoSource
 
 logger = get_logger(__name__)
@@ -25,6 +24,8 @@ class CVWorker:
         loop: bool = False,
         display: bool = False,
         enable_tracking: bool = True,
+        zones: list[Zone] | None = None,
+        rules: list[BehaviorRule] | None = None,
     ):
         self._source_id = source_id
         self._source_path = source_path
@@ -32,10 +33,14 @@ class CVWorker:
         self._loop = loop
         self._display = display
         self._enable_tracking = enable_tracking
+        self._zones = zones or []
+        self._rules = rules or []
         self._running = False
-        self._video_source: Optional[VideoSource] = None
-        self._detector: Optional[YOLO26Detector] = None
-        self._tracker: Optional[Tracker] = None
+        self._video_source: VideoSource | None = None
+        self._detector: YOLO26Detector | None = None
+        self._tracker: Tracker | None = None
+        self._rule_engine: RuleEngine | None = None
+        self._last_frame_timestamp: float | None = None
         self._event_adapter = PersonPresenceAdapter(
             min_confidence=settings.model.detector_confidence
         )
@@ -43,6 +48,7 @@ class CVWorker:
         self._last_inference_time = 0.0
         self._processed_frames = 0
         self._emitted_events = 0
+        self._emitted_triggers = 0
 
     def _create_source(self) -> VideoSource:
         if self._source_type == "file":
@@ -134,7 +140,7 @@ class CVWorker:
         detections = self._detector.detect(frame.data)
         self._processed_frames += 1
 
-        snapshot: Optional[TrackSnapshot] = None
+        snapshot: TrackSnapshot | None = None
         if self._tracker is not None:
             snapshot = self._tracker.update(detections, frame.timestamp)
             if snapshot.new_track_ids:
@@ -162,11 +168,56 @@ class CVWorker:
                 person_count=event.metadata.get("person_count", 0),
             )
 
+        if snapshot is not None:
+            self._apply_rules(frame, snapshot)
+
         if self._display:
             self._render(frame, detections, events, snapshot)
 
+    def _apply_rules(self, frame: Frame, snapshot: TrackSnapshot) -> None:
+        """Run the zone rules over this frame's tracks.
+
+        The engine is built lazily on the first frame because a zone's polygon
+        can only be resolved into pixel space once the frame size is known.
+        """
+        if not self._zones and not self._rules:
+            return
+
+        height, width = frame.data.shape[:2]
+        if self._rule_engine is None:
+            self._rule_engine = RuleEngine(
+                camera_id=self._source_id, frame_width=width, frame_height=height
+            )
+            for zone in self._zones:
+                self._rule_engine.load_zone(zone)
+            for rule in self._rules:
+                self._rule_engine.bind_rule(rule, rule.zone_id)
+
+        # Durations accumulate from frame cadence, never wall clock, so that
+        # replaying a clip offline reproduces identical dwell times.
+        dt = 0.0
+        if self._last_frame_timestamp is not None:
+            dt = max(0.0, frame.timestamp - self._last_frame_timestamp)
+        self._last_frame_timestamp = frame.timestamp
+
+        triggers = self._rule_engine.process(snapshot.tracked, frame.timestamp, dt)
+        self._emitted_triggers += len(triggers)
+
+        for trigger in triggers:
+            logger.warning(
+                "Threat trigger",
+                source_id=self._source_id,
+                rule_id=trigger.rule_id,
+                rule_name=trigger.rule_name,
+                zone_id=trigger.zone_id,
+                severity=trigger.severity,
+                tracker_id=trigger.tracker_id,
+                confidence=trigger.confidence,
+                details=trigger.details,
+            )
+
     def _render(
-        self, frame: Frame, detections, events, snapshot: Optional[TrackSnapshot] = None
+        self, frame: Frame, detections, events, snapshot: TrackSnapshot | None = None
     ) -> None:
         img = frame.data.copy()
 
@@ -206,12 +257,15 @@ class CVWorker:
             self._video_source.release()
         if self._tracker is not None:
             self._tracker.reset()
+        if self._rule_engine is not None:
+            self._rule_engine.reset()
         cv2.destroyAllWindows()
         logger.info(
             "CV worker stopped",
             source_id=self._source_id,
             processed_frames=self._processed_frames,
             emitted_events=self._emitted_events,
+            emitted_triggers=self._emitted_triggers,
         )
 
 

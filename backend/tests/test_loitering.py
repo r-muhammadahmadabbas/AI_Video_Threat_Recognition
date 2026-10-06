@@ -297,3 +297,36 @@ class TestDeterminism:
 
         assert results[0] == results[1]
         assert results[0][0] == pytest.approx(6.0)
+
+
+class TestConfidenceFiltering:
+    def test_below_threshold_track_accumulates_no_dwell(self, runtime):
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=2.0, require_min_frames=1, min_confidence=0.6
+            )
+        )
+        faint = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.4)
+
+        run(rule, faint, runtime, frames=5, dt=1.0)
+
+        assert residence(rule) == 0.0
+
+    def test_confidence_dip_does_not_reset_a_residency_clock(self, runtime):
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=10.0, require_min_frames=1, min_confidence=0.6
+            )
+        )
+        confident = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.9)
+        faint = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.2)
+
+        run(rule, confident, runtime, frames=3, dt=1.0)
+        dwell_before = residence(rule)
+
+        run(rule, faint, runtime, frames=2, dt=1.0)
+
+        # The episode survived the dip rather than being forgotten and restarted.
+        assert residence(rule) == dwell_before
+        run(rule, confident, runtime, frames=3, dt=1.0)
+        assert residence(rule) == pytest.approx(dwell_before + 3.0)

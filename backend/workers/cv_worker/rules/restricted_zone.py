@@ -19,12 +19,11 @@ from workers.cv_worker.rules.base import (
     BehaviorRule,
     RuleTrigger,
     TrackObservation,
-    probe_point_for,
 )
 from workers.cv_worker.rules.config import ZoneEntryConfig
 
 
-class PresenceState(str, enum.Enum):
+class PresenceState(enum.StrEnum):
     INSIDE = "inside"
     OUTSIDE = "outside"
 
@@ -57,14 +56,29 @@ class ZoneEntryRule(BehaviorRule):
         self._presence: dict[int, _TrackPresence] = {}
 
     def update(
-        self, observations: list[TrackObservation], timestamp: float
+        self,
+        observations: list[TrackObservation],
+        timestamp: float,
+        dt: float = 0.0,  # noqa: ARG002 - part of the BehaviorRule interface
     ) -> list[RuleTrigger]:
+        """Open at most one trigger per track per cooldown window.
+
+        ``dt`` is accepted for interface symmetry with duration-driven rules;
+        entry is a discrete crossing, so nothing here integrates time.
+        """
         triggers: list[RuleTrigger] = []
         seen: set[int] = set()
 
         for observation in observations:
             tracker_id = observation.track.tracker_id
+            # Register presence even when below the confidence floor, so a
+            # briefly low-confidence frame forgets state and causes a
+            # duplicate incident when confidence recovers.
             seen.add(tracker_id)
+
+            if observation.track.confidence < self.config.min_confidence:
+                continue
+
             state = self._presence.setdefault(tracker_id, _TrackPresence())
 
             was_inside = state.state == PresenceState.INSIDE

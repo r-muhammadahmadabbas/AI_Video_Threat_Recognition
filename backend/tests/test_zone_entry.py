@@ -296,3 +296,37 @@ class TestProbePointChoice:
 
         assert bottom_obs.probe_point[1] == 350.0
         assert center_obs.probe_point[1] == 300.0
+
+
+class TestConfidenceFiltering:
+    def test_below_threshold_track_is_ignored(self, runtime):
+        rule = make_rule(
+            config=ZoneEntryConfig(min_frames_in_zone=1, min_confidence=0.6)
+        )
+        faint = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.5)
+
+        assert rule.update([make_observation(faint, runtime)], 1.0) == []
+        assert rule.is_inside(1) is False
+
+    def test_at_threshold_track_counts(self, runtime):
+        rule = make_rule(
+            config=ZoneEntryConfig(min_frames_in_zone=1, min_confidence=0.6)
+        )
+        confident = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.6)
+
+        assert len(rule.update([make_observation(confident, runtime)], 1.0)) == 1
+
+    def test_confidence_dip_does_not_forget_state_and_retrigger(self, runtime):
+        rule = make_rule(
+            config=ZoneEntryConfig(min_frames_in_zone=1, min_confidence=0.6)
+        )
+        track = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.9)
+
+        assert len(rule.update([make_observation(track, runtime)], 1.0)) == 1
+
+        faint = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.3)
+        assert rule.update([make_observation(faint, runtime)], 2.0) == []
+
+        # State survived the dip, so confidence recovery opens no new incident.
+        assert rule.update([make_observation(track, runtime)], 3.0) == []
+        assert rule.is_inside(1) is True

@@ -6,7 +6,7 @@ from workers.cv_worker.detector import Detection
 from workers.cv_worker.rules.base import TrackObservation, Zone, ZoneRuntime
 from workers.cv_worker.rules.config import ZoneConfig, ZoneEntryConfig
 from workers.cv_worker.rules.geometry import Polygon
-from workers.cv_worker.tracker import TrackState, TrackedObject
+from workers.cv_worker.tracker import TrackedObject, TrackState
 
 
 def make_track(
