@@ -25,14 +25,13 @@ def make_rule(**overrides) -> ZoneEntryRule:
 
 @pytest.fixture
 def zone():
-    # square 100..300 in both axes; bottom_center of a track at
-    # bbox (150,150,250,350) is (200, 350) -> just below the zone
+    """100..300 square; see inside_track/outside_track for probe placement."""
     return make_zone()
 
 
 @pytest.fixture
 def runtime(zone):
-    return make_zone_runtime(zone, entry_margin=1.02, exit_margin=0.98)
+    return make_zone_runtime(zone)
 
 
 def inside_track(tracker_id: int = 1):
@@ -57,6 +56,19 @@ def banded_track(tracker_id: int = 1):
     the 0.90-shrunk ring (110..290).
     """
     return make_track(tracker_id, bbox=(150.0, 105.0, 250.0, 305.0))
+
+
+def hysteresis_config(**overrides) -> ZoneEntryConfig:
+    """Wide margins that put a clear band outside the zone's edge."""
+    base = {"entry_margin": 1.10, "exit_margin": 0.90, "min_frames_in_zone": 1}
+    base.update(overrides)
+    return ZoneEntryConfig(**base)
+
+
+def hysteresis_setup(zone, config: ZoneEntryConfig | None = None):
+    """Rule and runtime sharing one wide-margin config."""
+    cfg = config or hysteresis_config()
+    return make_rule(config=cfg), make_zone_runtime(zone, cfg)
 
 
 class TestBasicEntry:
@@ -183,9 +195,7 @@ class TestCooldown:
 class TestHysteresis:
     def test_band_alone_never_registers_entry(self, zone):
         """Entering requires a clear crossing, not a brush of the boundary."""
-        runtime = make_zone_runtime(zone, entry_margin=1.10, exit_margin=0.90)
-        rule = make_rule(config=ZoneEntryConfig(min_frames_in_zone=1))
-
+        rule, runtime = hysteresis_setup(zone)
         banded = banded_track()
         observation = make_observation(banded, runtime)
         assert observation.inside_expanded is True
@@ -197,23 +207,19 @@ class TestHysteresis:
 
     def test_stays_inside_while_in_the_band(self, zone):
         """Once clearly inside, drifting into the band must not eject the track."""
-        runtime = make_zone_runtime(zone, entry_margin=1.10, exit_margin=0.90)
-        rule = make_rule(config=ZoneEntryConfig(min_frames_in_zone=1))
+        rule, runtime = hysteresis_setup(zone)
 
         assert len(rule.update([make_observation(inside_track(), runtime)], 100.0)) == 1
         assert rule.is_inside(1) is True
 
-        # drift out to the band: still inside as far as the rule is concerned
         for t in (101.0, 102.0, 103.0, 104.0):
             assert rule.update([make_observation(banded_track(), runtime)], t) == []
             assert rule.is_inside(1) is True
 
     def test_band_hop_does_not_retrigger(self, zone):
         """The anti-flicker guarantee: shuttling across the edge alerts once."""
-        runtime = make_zone_runtime(zone, entry_margin=1.10, exit_margin=0.90)
-        rule = make_rule(
-            config=ZoneEntryConfig(min_frames_in_zone=1, cooldown_seconds=0.0)
-        )
+        config = hysteresis_config(cooldown_seconds=0.0)
+        rule, runtime = hysteresis_setup(zone, config)
 
         assert len(rule.update([make_observation(inside_track(), runtime)], 100.0)) == 1
 
@@ -224,8 +230,7 @@ class TestHysteresis:
         assert total == 0
 
     def test_definitive_exit_resets(self, zone):
-        runtime = make_zone_runtime(zone, entry_margin=1.10, exit_margin=0.90)
-        rule = make_rule(config=ZoneEntryConfig(min_frames_in_zone=1))
+        rule, runtime = hysteresis_setup(zone)
 
         rule.update([make_observation(inside_track(), runtime)], 100.0)
         assert rule.is_inside(1) is True

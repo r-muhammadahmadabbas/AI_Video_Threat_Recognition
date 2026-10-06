@@ -46,15 +46,18 @@ def make_zone(
     )
 
 
-def make_zone_runtime(
-    zone: Zone,
-    entry_margin: float = 1.02,
-    exit_margin: float = 0.98,
-) -> ZoneRuntime:
+def make_zone_runtime(zone: Zone, config: ZoneEntryConfig | None = None) -> ZoneRuntime:
+    """Derive the hysteresis rings from the same config the rule uses.
+
+    In production the rings and the rule thresholds come from one
+    ``ZoneEntryConfig``; deriving them here keeps that invariant so a test can
+    never exercise a rule with margins that disagree with its rings.
+    """
+    cfg = config or ZoneEntryConfig()
     return ZoneRuntime(
         zone=zone,
-        expanded=zone.polygon.scaled_about_centroid(entry_margin),
-        shrunk=zone.polygon.scaled_about_centroid(exit_margin),
+        expanded=zone.polygon.scaled_about_centroid(cfg.entry_margin),
+        shrunk=zone.polygon.scaled_about_centroid(cfg.exit_margin),
     )
 
 

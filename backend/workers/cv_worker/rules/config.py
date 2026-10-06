@@ -62,14 +62,12 @@ class LoiterConfig(BaseModel):
 
     Attributes:
         dwell_seconds: continuous residency time that counts as loitering.
-        grace_seconds: how long a brief exit keeps the residency timer alive.
-            With ``grace_seconds`` at zero any exit resets the timer; with a
-            positive grace, stepping just outside for a moment does not restart
-            the clock, which stops a subject hovering on the line from
-            accumulating dwell time indefinitely while visibly outside.
-        reset_on_exit: when true a full exit always resets the timer regardless
-            of grace. Mutually meaningful with a non-zero grace only while the
-            exit is longer than the grace window.
+        grace_seconds: how long a brief exit keeps the residency clock alive.
+            At zero any exit resets the timer, so a subject pacing in and out
+            never accumulates dwell. With a positive grace, stepping just
+            outside for a moment pauses the clock rather than clearing it, which
+            stops a subject hovering on the line from having to restart, while
+            still resetting if they really leave.
         min_confidence: minimum detection confidence to consider.
         cooldown_seconds: minimum gap between two incidents for the same track.
         point: which point of the bounding box to test against the polygon.
@@ -81,23 +79,20 @@ class LoiterConfig(BaseModel):
 
     dwell_seconds: float = Field(default=30.0, gt=0.0)
     grace_seconds: float = Field(default=5.0, ge=0.0)
-    reset_on_exit: bool = True
     min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
     cooldown_seconds: float = Field(default=300.0, ge=0.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
     require_min_frames: int = Field(default=2, ge=1)
 
-    def residence_seconds(
-        self, inside_seconds: float, outside_seconds: float
-    ) -> float:
-        """Effective residency after accounting for a brief exit.
+    def exit_is_tolerated(self, exit_seconds: float) -> bool:
+        """Whether an exit of this length keeps the residency clock alive.
 
-        Inside time always counts. Time spent outside only discounts the
-        residency when the exit outlasted the grace window.
+        This single knob expresses the "brief exit" decision from the sprint
+        plan. ``grace_seconds`` at zero means any exit breaks continuity, so
+        pacing in and out never accumulates dwell time; a positive grace means a
+        momentary step out merely pauses the clock.
         """
-        if outside_seconds <= self.grace_seconds:
-            return inside_seconds
-        return max(0.0, inside_seconds - outside_seconds)
+        return exit_seconds <= self.grace_seconds
 
 
 class ZoneConfig(BaseModel):

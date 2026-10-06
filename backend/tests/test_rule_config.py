@@ -58,7 +58,6 @@ class TestLoiterConfig:
         cfg = LoiterConfig()
         assert cfg.dwell_seconds == 30.0
         assert cfg.grace_seconds == 5.0
-        assert cfg.reset_on_exit is True
         assert cfg.require_min_frames == 2
 
     def test_rejects_zero_dwell(self):
@@ -69,29 +68,22 @@ class TestLoiterConfig:
         with pytest.raises(ValidationError):
             LoiterConfig(grace_seconds=-1)
 
-    def test_residence_counts_inside_time(self):
+    def test_exit_at_grace_boundary_is_tolerated(self):
         cfg = LoiterConfig(grace_seconds=5.0)
-        assert cfg.residence_seconds(inside_seconds=30.0, outside_seconds=0.0) == 30.0
+        assert cfg.exit_is_tolerated(5.0) is True
 
-    def test_brief_exit_keeps_full_residence(self):
+    def test_exit_just_beyond_grace_is_not_tolerated(self):
         cfg = LoiterConfig(grace_seconds=5.0)
-        assert cfg.residence_seconds(inside_seconds=30.0, outside_seconds=3.0) == 30.0
+        assert cfg.exit_is_tolerated(5.1) is False
 
-    def test_exit_at_grace_boundary_keeps_residence(self):
-        cfg = LoiterConfig(grace_seconds=5.0)
-        assert cfg.residence_seconds(inside_seconds=30.0, outside_seconds=5.0) == 30.0
-
-    def test_long_exit_discounts_time(self):
-        cfg = LoiterConfig(grace_seconds=5.0)
-        assert cfg.residence_seconds(inside_seconds=30.0, outside_seconds=10.0) == 20.0
-
-    def test_residence_never_negative(self):
-        cfg = LoiterConfig(grace_seconds=5.0)
-        assert cfg.residence_seconds(inside_seconds=3.0, outside_seconds=60.0) == 0.0
-
-    def test_zero_grace_discounts_any_exit(self):
+    def test_zero_grace_rejects_any_exit(self):
         cfg = LoiterConfig(grace_seconds=0.0)
-        assert cfg.residence_seconds(inside_seconds=30.0, outside_seconds=0.1) == 29.9
+        assert cfg.exit_is_tolerated(0.0) is True
+        assert cfg.exit_is_tolerated(0.001) is False
+
+    def test_large_grace_tolerates_long_exit(self):
+        cfg = LoiterConfig(grace_seconds=600.0)
+        assert cfg.exit_is_tolerated(300.0) is True
 
 
 class TestZoneConfig:
