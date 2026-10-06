@@ -2,14 +2,23 @@ from datetime import datetime
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_active_user, require_role
 from app.db.session import get_session_dependency
-from app.db.models import Incident, IncidentStatus, ThreatRuleSeverity, Camera, User, UserRole
+from app.db.models import (
+    Camera,
+    Incident,
+    IncidentStatus,
+    ThreatRule,
+    ThreatRuleSeverity,
+    User,
+    UserRole,
+    Zone,
+)
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -54,6 +63,106 @@ class IncidentListResponse(BaseModel):
 
 class IncidentVerify(BaseModel):
     verified: bool  # true = verify, false = dismiss
+
+
+class IncidentCreate(BaseModel):
+    """A detection originating a new incident.
+
+    Callers cannot choose a status: an incident always starts unreviewed so
+    that no path can create one already marked verified.
+    """
+
+    camera_id: int
+    event_type: str = Field(min_length=1, max_length=100)
+    severity: ThreatRuleSeverity
+    confidence: float = Field(ge=0.0, le=1.0)
+    first_seen_at: datetime
+    last_seen_at: datetime
+    zone_id: int | None = None
+    rule_id: int | None = None
+    track_ids: list[int] = Field(default_factory=list)
+    model_version: str = Field(min_length=1, max_length=100)
+    metadata: dict = Field(default_factory=dict)
+
+    model_config = {"extra": "forbid"}
+
+
+async def _owned_camera(camera_id: int, session: AsyncSession, user: User) -> Camera:
+    """Load a camera, hiding existence from users who may not see it.
+
+    A 404 rather than a 403 for someone else's camera stops an attacker
+    probing which camera ids are real.
+    """
+    result = await session.execute(select(Camera).where(Camera.id == camera_id))
+    camera = result.scalar_one_or_none()
+    if camera is None:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    if user.role != UserRole.ADMIN and camera.owner_id != user.id:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    return camera
+
+
+async def _camera_owned_resource(
+    model: type[Zone] | type[ThreatRule],
+    resource_id: int,
+    camera_id: int,
+    session: AsyncSession,
+    label: str,
+) -> None:
+    """Reject a zone or rule that belongs to a different camera.
+
+    Attaching someone else's zone to an incident would record evidence
+    against the wrong place, so the mismatch fails the request outright.
+    """
+    result = await session.execute(
+        select(model.id).where(model.id == resource_id, model.camera_id == camera_id)
+    )
+    if result.scalar_one_or_none() is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"{label} {resource_id} does not belong to camera {camera_id}",
+        )
+
+
+@router.post("", response_model=IncidentResponse, status_code=status.HTTP_201_CREATED)
+async def create_incident(
+    payload: IncidentCreate,
+    session: AsyncSession = Depends(get_session_dependency),
+    current_user: User = Depends(get_current_active_user),
+) -> Incident:
+    await _owned_camera(payload.camera_id, session, current_user)
+    if payload.zone_id is not None:
+        await _camera_owned_resource(Zone, payload.zone_id, payload.camera_id, session, "Zone")
+    if payload.rule_id is not None:
+        await _camera_owned_resource(
+            ThreatRule, payload.rule_id, payload.camera_id, session, "Rule"
+        )
+
+    incident = Incident(
+        camera_id=payload.camera_id,
+        zone_id=payload.zone_id,
+        rule_id=payload.rule_id,
+        event_type=payload.event_type,
+        severity=payload.severity,
+        status=IncidentStatus.DETECTED,
+        first_seen_at=payload.first_seen_at,
+        last_seen_at=payload.last_seen_at,
+        confidence=payload.confidence,
+        model_version=payload.model_version,
+        track_ids=payload.track_ids,
+        metadata_json=payload.metadata,
+    )
+    session.add(incident)
+    await session.commit()
+    await session.refresh(incident)
+    logger.info(
+        "Incident created",
+        incident_id=incident.id,
+        camera_id=incident.camera_id,
+        event_type=incident.event_type,
+        confidence=incident.confidence,
+    )
+    return incident
 
 
 @router.get("", response_model=IncidentListResponse)

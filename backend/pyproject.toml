@@ -54,6 +54,11 @@ ignore = ["S101", "PLR2004", "TRY003", "PLR0913", "PLR0915"]
 fixable = ["ALL"]
 unfixable = ["T20", "S101", "RUF100"]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI dependency injection is built on call-in-default, which B008
+# (wrongly) flags. Silencing it is the standard remedy for FastAPI projects.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["S101", "PLR2004", "PLR0913", "PLR0915"]
 

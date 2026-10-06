@@ -1,3 +1,17 @@
-from .router import router, get_current_user, get_current_active_user, require_role
+from .router import (
+    get_current_active_user,
+    get_current_user,
+    get_password_hash,
+    require_role,
+    router,
+    verify_password,
+)
 
-__all__ = ["router", "get_current_user", "get_current_active_user", "require_role"]
+__all__ = [
+    "get_current_active_user",
+    "get_current_user",
+    "get_password_hash",
+    "require_role",
+    "router",
+    "verify_password",
+]

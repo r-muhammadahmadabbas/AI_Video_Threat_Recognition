@@ -7,7 +7,13 @@ from app.config import settings
 from app.logging import get_logger
 from workers.cv_worker.detector import YOLO26Detector
 from workers.cv_worker.event_adapter import PersonPresenceAdapter
-from workers.cv_worker.rules.base import BehaviorRule, Zone
+from workers.cv_worker.incident_sink import (
+    DatabaseIncidentSink,
+    IncidentRecord,
+    IncidentSink,
+    LogIncidentSink,
+)
+from workers.cv_worker.rules.base import BehaviorRule, RuleTrigger, Zone
 from workers.cv_worker.rules.engine import RuleEngine
 from workers.cv_worker.tracker import ByteTrackTracker, Tracker, TrackSnapshot
 from workers.cv_worker.video_source import (
@@ -45,10 +51,18 @@ class CVWorker:
         enable_tracking: bool = True,
         zones: list[Zone] | None = None,
         rules: list[BehaviorRule] | None = None,
+        camera_id: int | None = None,
+        incident_sink: IncidentSink | None = None,
     ):
         self._source_id = source_id
         self._source_path = source_path
         self._source_type = source_type
+        self._camera_id = camera_id
+        self._incident_sink = (
+            incident_sink
+            if incident_sink is not None
+            else (DatabaseIncidentSink() if camera_id is not None else LogIncidentSink())
+        )
         self._loop = loop
         self._display = display
         self._enable_tracking = enable_tracking
@@ -68,6 +82,8 @@ class CVWorker:
         self._processed_frames = 0
         self._emitted_events = 0
         self._emitted_triggers = 0
+        self._recorded_incidents = 0
+        self._failed_records = 0
 
     def _create_source(self) -> VideoSource:
         if self._source_type == "file":
@@ -303,6 +319,44 @@ class CVWorker:
                 confidence=trigger.confidence,
                 details=trigger.details,
             )
+            self._persist(trigger)
+
+    def _persist(self, trigger: RuleTrigger) -> None:
+        """File a trigger as an incident, without letting persistence kill the stream.
+
+        Losing the database must not stop detection: an unfiled threat is
+        recoverable from logs, a worker that exited is not.
+        """
+        try:
+            self._incident_sink.record(self._build_record(trigger))
+            self._recorded_incidents += 1
+        except Exception:
+            self._failed_records += 1
+            logger.exception(
+                "Failed to record incident",
+                source_id=self._source_id,
+                rule_id=trigger.rule_id,
+                failed_records=self._failed_records,
+            )
+
+    def _build_record(self, trigger: RuleTrigger) -> IncidentRecord:
+        return IncidentRecord.from_trigger(
+            camera_id=self._camera_id,
+            event_type=trigger.rule_id,
+            severity=trigger.severity,
+            confidence=trigger.confidence,
+            timestamp=trigger.timestamp,
+            track_ids=(trigger.tracker_id,),
+            model_version=settings.model.detector_name,
+            metadata={
+                "source_id": self._source_id,
+                "rule_name": trigger.rule_name,
+                "zone_id": trigger.zone_id,
+                "zone_name": trigger.zone_name,
+                "tracker_id": trigger.tracker_id,
+                "details": trigger.details,
+            },
+        )
 
     def _render(
         self, frame: Frame, detections, events, snapshot: TrackSnapshot | None = None
@@ -354,6 +408,8 @@ class CVWorker:
             processed_frames=self._processed_frames,
             emitted_events=self._emitted_events,
             emitted_triggers=self._emitted_triggers,
+            recorded_incidents=self._recorded_incidents,
+            failed_records=self._failed_records,
         )
 
 
@@ -371,6 +427,12 @@ def main():
         action="store_true",
         help="Disable ByteTrack tracking (detections only)",
     )
+    parser.add_argument(
+        "--camera-id",
+        type=int,
+        default=None,
+        help="Database camera id to file incidents under (omit for file replay)",
+    )
     args = parser.parse_args()
 
     worker = CVWorker(
@@ -380,6 +442,7 @@ def main():
         loop=args.loop,
         display=args.display,
         enable_tracking=not args.no_tracking,
+        camera_id=args.camera_id,
     )
     worker.start()
 

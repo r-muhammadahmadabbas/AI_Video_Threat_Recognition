@@ -9,6 +9,7 @@ import pytest
 
 from app.config import settings
 from workers.cv_worker.detector import Detection
+from workers.cv_worker.incident_sink import DatabaseIncidentSink, LogIncidentSink
 from workers.cv_worker.main import CVWorker
 from workers.cv_worker.rules.base import Zone
 from workers.cv_worker.rules.config import ZoneConfig, ZoneEntryConfig
@@ -576,3 +577,94 @@ class TestTrackerConfiguration:
         tracker = self._build(tracker_args={})
 
         assert isinstance(tracker, ByteTrackTracker)
+
+
+class RecordingSink:
+    def __init__(self):
+        self.records = []
+
+    def record(self, record):
+        self.records.append(record)
+
+
+class RaisingSink:
+    def record(self, record):
+        raise RuntimeError("database unavailable")
+
+
+class TestIncidentPersistence:
+    """A trigger must become an incident record; the worker must survive
+    losing the database while keeping on detecting."""
+
+    @pytest.fixture
+    def rule_video(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            path = f.name
+        _create_test_video(path, frames=60)
+        yield path
+        _remove_video(path)
+
+    @staticmethod
+    def _worker(rule_video, *, camera_id=None, sink=None):
+        mock_detector = MagicMock()
+        mock_detector.detect.return_value = [
+            TestCVWorkerRuleEngine._detection(TestCVWorkerRuleEngine.INSIDE)
+        ]
+
+        worker = CVWorker(
+            source_id="test_cam",
+            source_path=rule_video,
+            display=False,
+            zones=[TestCVWorkerRuleEngine._zone()],
+            rules=[TestCVWorkerRuleEngine._rule()],
+            camera_id=camera_id,
+            incident_sink=sink,
+        )
+        worker._video_source = worker._create_source()
+        worker._detector = mock_detector
+        worker._tracker = ByteTrackTracker(frame_rate=30.0)
+        return worker
+
+    @staticmethod
+    def _run(worker):
+        for frame in _iter_all_frames(worker):
+            if worker._should_process(frame):
+                worker._process_frame(frame)
+
+    def test_camera_id_selects_database_sink(self, sample_video):
+        worker = CVWorker(
+            source_id="cam", source_path=sample_video, display=False, camera_id=9
+        )
+
+        assert isinstance(worker._incident_sink, DatabaseIncidentSink)
+
+    def test_no_camera_falls_back_to_logging(self, sample_video):
+        worker = CVWorker(source_id="cam", source_path=sample_video, display=False)
+
+        assert isinstance(worker._incident_sink, LogIncidentSink)
+
+    def test_trigger_produces_incident_record(self, rule_video):
+        sink = RecordingSink()
+        worker = self._worker(rule_video, camera_id=7, sink=sink)
+
+        self._run(worker)
+
+        assert worker._recorded_incidents == 1
+        record = sink.records[0]
+        assert record.camera_id == 7
+        assert record.event_type == "rule_entry"
+        assert record.severity == "high"
+        assert record.confidence == 0.9
+        assert len(record.track_ids) == 1
+        assert record.track_ids[0] >= 1
+        assert record.model_version == settings.model.detector_name
+        assert record.metadata["zone_name"] == "Restricted Area"
+        assert record.metadata["source_id"] == "test_cam"
+
+    def test_persist_failure_does_not_block_stream(self, rule_video):
+        worker = self._worker(rule_video, camera_id=7, sink=RaisingSink())
+
+        self._run(worker)
+
+        assert worker._failed_records == 1
+        assert worker._processed_frames > 0

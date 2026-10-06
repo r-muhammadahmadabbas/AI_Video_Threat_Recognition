@@ -1,20 +1,29 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
-from app.config import settings
-from app.logging import get_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
+from app.config import settings
+from app.logging import get_logger
+
 logger = get_logger(__name__)
+
+# NullPool (sqlite) rejects pool sizing arguments, so the two database
+# backends must be configured separately instead of passing 0/0/0 and hoping.
+if settings.use_sqlite:
+    engine_kwargs: dict = {"poolclass": NullPool}
+else:
+    engine_kwargs = {
+        "pool_size": settings.database.pool_size,
+        "max_overflow": settings.database.max_overflow,
+        "pool_timeout": settings.database.pool_timeout,
+    }
 
 engine = create_async_engine(
     settings.db_url,
     echo=settings.debug,
-    poolclass=NullPool if settings.use_sqlite else None,
-    pool_size=settings.database.pool_size if not settings.use_sqlite else 0,
-    max_overflow=settings.database.max_overflow if not settings.use_sqlite else 0,
-    pool_timeout=settings.database.pool_timeout if not settings.use_sqlite else 0,
+    **engine_kwargs,
 )
 
 async_session_maker = async_sessionmaker(
