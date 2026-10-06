@@ -10,9 +10,28 @@ from workers.cv_worker.event_adapter import PersonPresenceAdapter
 from workers.cv_worker.rules.base import BehaviorRule, Zone
 from workers.cv_worker.rules.engine import RuleEngine
 from workers.cv_worker.tracker import ByteTrackTracker, Tracker, TrackSnapshot
-from workers.cv_worker.video_source import Frame, MP4VideoSource, VideoSource
+from workers.cv_worker.video_source import (
+    Frame,
+    MP4VideoSource,
+    RTSPVideoSource,
+    SourceState,
+    VideoSource,
+    WebcamVideoSource,
+)
 
 logger = get_logger(__name__)
+
+#: Keys accepted in ``settings.model.tracker_args``. Unknown keys fail fast
+#: rather than being dropped, because a silently ignored typo would leave an
+#: operator believing a tuned threshold was in force.
+TRACKER_ARGS: frozenset[str] = frozenset(
+    {
+        "track_activation_threshold",
+        "lost_track_buffer",
+        "minimum_matching_threshold",
+        "max_missed_frames",
+    }
+)
 
 
 class CVWorker:
@@ -53,7 +72,41 @@ class CVWorker:
     def _create_source(self) -> VideoSource:
         if self._source_type == "file":
             return MP4VideoSource(self._source_id, self._source_path, loop=self._loop)
+        if self._source_type == "webcam":
+            return WebcamVideoSource(
+                self._source_id, device_id=int(self._source_path)
+            )
+        if self._source_type == "rtsp":
+            video = settings.video
+            return RTSPVideoSource(
+                self._source_id,
+                url=self._source_path,
+                timeout=float(video.rtsp_timeout),
+                reconnect_delay=float(video.rtsp_reconnect_delay),
+                max_reconnect_delay=float(video.rtsp_max_reconnect_delay),
+            )
         raise ValueError(f"Unsupported source type: {self._source_type}")
+
+    def _build_tracker(self, frame_rate: float) -> Tracker:
+        """Build the tracker from settings, rejecting unusable configuration."""
+        tracker_type = settings.model.tracker_type
+        if tracker_type != "bytetrack":
+            raise ValueError(
+                f"Unsupported tracker_type: {tracker_type!r} (only 'bytetrack' "
+                "is implemented; refusing to run untracked and call it tracked)"
+            )
+
+        tracker_args = dict(settings.model.tracker_args or {})
+        unknown = sorted(set(tracker_args) - TRACKER_ARGS)
+        if unknown:
+            raise ValueError(
+                "Unknown model.tracker_args keys: "
+                + ", ".join(unknown)
+                + ". Supported keys: "
+                + ", ".join(sorted(TRACKER_ARGS))
+            )
+
+        return ByteTrackTracker(frame_rate=frame_rate, **tracker_args)
 
     def start(self) -> None:
         logger.info(
@@ -75,8 +128,8 @@ class CVWorker:
         if self._enable_tracking:
             # The tracker owns per-camera state, so it is created per worker
             # and seeded with this source's real frame rate.
-            self._tracker = ByteTrackTracker(
-                frame_rate=self._video_source.get_fps()
+            self._tracker = self._build_tracker(
+                self._video_source.get_fps()
                 or settings.model.inference_target_fps
             )
 
@@ -97,16 +150,51 @@ class CVWorker:
         self._running = False
 
     def _run_loop(self) -> None:
+        """Drive the source, deciding per state rather than per ``None``.
+
+        A read returning nothing is ambiguous on its own - a finished clip and
+        a dropped stream look identical - so the source's state decides what
+        happens next: finished means stop, dropped means try to recover.
+        """
         while self._running:
-            if not self._video_source or not self._video_source.is_opened():
-                logger.error("Video source not available, stopping")
+            if self._video_source is None:
+                logger.error("Video source missing, stopping")
+                break
+
+            state = self._video_source.state
+            if state is SourceState.CLOSED:
+                break
+            if state is SourceState.FAILED:
+                logger.error(
+                    "Video source failed permanently, stopping",
+                    source_id=self._source_id,
+                    state=state.value,
+                    reconnect_attempts=self._video_source.reconnect_attempts,
+                )
+                break
+            if state is SourceState.RECONNECTING:
+                if self._video_source.reconnect():
+                    logger.info(
+                        "Video source reconnected",
+                        source_id=self._source_id,
+                        attempts=self._video_source.reconnect_attempts,
+                    )
+                else:
+                    logger.error(
+                        "Video source could not reconnect, stopping",
+                        source_id=self._source_id,
+                        attempts=self._video_source.reconnect_attempts,
+                        state=self._video_source.state.value,
+                    )
+                    break
+                continue
+            if state is SourceState.END_OF_STREAM:
+                logger.info("End of stream reached", source_id=self._source_id)
                 break
 
             frame = self._video_source.read()
             if frame is None:
-                if not self._loop:
-                    logger.info("End of stream reached")
-                    break
+                # State was updated by read(); the next iteration acts on it.
                 continue
 
             if not self._should_process(frame):

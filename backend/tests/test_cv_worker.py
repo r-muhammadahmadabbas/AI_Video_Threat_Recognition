@@ -15,6 +15,7 @@ from workers.cv_worker.rules.config import ZoneConfig, ZoneEntryConfig
 from workers.cv_worker.rules.geometry import Polygon
 from workers.cv_worker.rules.restricted_zone import ZoneEntryRule
 from workers.cv_worker.tracker import ByteTrackTracker
+from workers.cv_worker.video_source import SourceState
 
 
 def _create_test_video(path: str, frames: int = 5, width: int = 320, height: int = 240) -> None:
@@ -447,3 +448,131 @@ class TestCVWorkerRuleEngine:
         worker.stop()
         assert worker._rule_engine.zone_ids == ["zone_1"]
         assert worker._rule_engine._last_incident == {}
+
+
+class TestRunLoopStateMachine:
+    """The loop acts on *why* a read returned nothing, not merely on ``None``.
+
+    A finished file and a dropped camera both produce a ``None`` frame; only
+    the source state tells them apart, and they want opposite handling.
+    """
+
+    @pytest.fixture
+    def long_video(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            path = f.name
+        _create_test_video(path, frames=60)
+        yield path
+        _remove_video(path)
+
+    @staticmethod
+    def _worker(source_path, source_type="file"):
+        with patch("workers.cv_worker.main.YOLO26Detector") as detector_cls:
+            detector_cls.return_value = MagicMock(detect=MagicMock(return_value=[]))
+            worker = CVWorker(
+                source_id="run_loop",
+                source_path=source_path,
+                source_type=source_type,
+                display=False,
+            )
+        worker._video_source = worker._create_source()
+        worker._detector = detector_cls.return_value
+        worker._tracker = ByteTrackTracker(frame_rate=30.0)
+        return worker
+
+    def test_file_runs_to_end_of_stream(self, long_video):
+        worker = self._worker(long_video)
+        worker._running = True
+
+        worker._run_loop()
+
+        # 60 frames at 30fps against a 5fps inference target: every 6th frame.
+        assert worker._processed_frames == 10
+        assert worker._video_source.state is SourceState.END_OF_STREAM
+
+    def test_source_opened_but_already_closed_does_nothing(self, long_video):
+        worker = self._worker(long_video)
+        worker._video_source.release()
+        worker._running = True
+
+        worker._run_loop()
+
+        assert worker._processed_frames == 0
+
+    def test_failed_source_stops_without_processing(self, long_video):
+        worker = self._worker(long_video, source_type="rtsp")
+        worker._video_source._state = SourceState.FAILED
+        worker._running = True
+
+        worker._run_loop()
+
+        assert worker._processed_frames == 0
+        assert worker._video_source.state is SourceState.FAILED
+
+    def test_dropped_live_source_triggers_reconnect(self, long_video):
+        worker = self._worker(long_video, source_type="rtsp")
+        reconnect = worker._video_source.reconnect
+        attempts = []
+
+        def stop_after_first_attempt():
+            # Read to EOF first, then let one recovery attempt decide the rest.
+            while worker._video_source.read() is not None:
+                pass
+            result = reconnect()
+            attempts.append(result)
+            worker._running = False
+            return result
+
+        worker._video_source.reconnect = stop_after_first_attempt
+        worker._running = True
+
+        worker._run_loop()
+
+        assert attempts == [True]
+        assert worker._video_source.state is SourceState.STREAMING
+
+    def test_run_loop_stops_when_reconnect_fails(self, long_video):
+        worker = self._worker(long_video, source_type="rtsp")
+        attempts = []
+
+        def failing_reconnect():
+            attempts.append(1)
+            return False
+
+        worker._video_source.reconnect = failing_reconnect
+        worker._running = True
+
+        worker._run_loop()
+
+        # Streams normally until the source drops, then gives up after a single
+        # failed recovery instead of retrying against a camera that is gone.
+        assert worker._processed_frames > 0
+        assert attempts == [1]
+
+
+class TestTrackerConfiguration:
+    """Operator tuning must reach ByteTrack, and typos must not vanish silently."""
+
+    @staticmethod
+    def _build(**model_overrides):
+        worker = CVWorker(source_id="cfg", source_path="x.mp4", display=False)
+        with patch.multiple(settings.model, **model_overrides):
+            return worker._build_tracker(frame_rate=30.0)
+
+    def test_tracker_args_reach_byte_track(self):
+        tracker = self._build(tracker_args={"track_activation_threshold": 0.9})
+
+        assert tracker._activation_threshold == 0.9
+
+    def test_unknown_tracker_arg_is_rejected(self):
+        with pytest.raises(ValueError, match="track_activation_treshold"):
+            self._build(tracker_args={"track_activation_treshold": 0.9})
+
+    def test_unsupported_tracker_type_is_rejected(self):
+        with pytest.raises(ValueError, match="botsort"):
+            self._build(tracker_type="botsort")
+
+    def test_default_configuration_builds(self):
+        tracker = self._build(tracker_args={})
+
+        assert isinstance(tracker, ByteTrackTracker)
