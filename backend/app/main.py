@@ -1,14 +1,14 @@
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
-from app.db.session import init_db, close_db
+from app.db.session import close_db, init_db
 from app.logging import configure_logging, get_logger
 
 configure_logging()
@@ -86,14 +86,15 @@ def create_app() -> FastAPI:
                 content={"status": "error", "service": "api", "database": "disconnected"},
             )
 
+    from app.audit.router import router as audit_router
     from app.auth.router import router as auth_router
     from app.cameras.router import router as cameras_router
-    from app.incidents.router import router as incidents_router
-    from app.zones.router import router as zones_router
-    from app.rules.router import router as rules_router
+    from app.dashboard.router import router as dashboard_router
     from app.evidence.router import router as evidence_router
+    from app.incidents.router import router as incidents_router
+    from app.rules.router import router as rules_router
     from app.users.router import router as users_router
-    from app.audit.router import router as audit_router
+    from app.zones.router import router as zones_router
 
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(cameras_router, prefix="/cameras", tags=["cameras"])
@@ -103,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(evidence_router, prefix="/evidence", tags=["evidence"])
     app.include_router(users_router, prefix="/users", tags=["users"])
     app.include_router(audit_router, prefix="/audit", tags=["audit"])
+    app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
 
     return app
 

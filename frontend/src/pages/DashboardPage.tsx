@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { AlertTriangle, CheckCircle, Clock, Video } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, Video, ShieldAlert } from 'lucide-react'
 
 interface DashboardStats {
   total_cameras: number
@@ -9,6 +9,8 @@ interface DashboardStats {
   pending_incidents: number
   verified_incidents: number
   dismissed_incidents: number
+  very_high_risk_incidents: number
+  incidents_last_24h: number
 }
 
 function StatCard({ title, value, icon: Icon, color, trend }: { title: string; value: number; icon: any; color: string; trend?: string }) {
@@ -45,20 +47,8 @@ function CameraStatusCard({ camera }: { camera: any }) {
 export function DashboardPage() {
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ['dashboard-stats'],
-    queryFn: async () => {
-      const [cameras, incidents] = await Promise.all([
-        api.getCameras({ page_size: 1 }),
-        api.getIncidents({ page_size: 1 }),
-      ])
-      return {
-        total_cameras: cameras.total,
-        online_cameras: 0,
-        total_incidents: incidents.total,
-        pending_incidents: 0,
-        verified_incidents: 0,
-        dismissed_incidents: 0,
-      }
-    },
+    queryFn: () => api.getDashboardStats(),
+    refetchInterval: 30000,
   })
 
   const { data: camerasData } = useQuery({
@@ -97,6 +87,7 @@ export function DashboardPage() {
         <StatCard title="Online Cameras" value={stats?.online_cameras || 0} icon={CheckCircle} color="var(--color-success)" />
         <StatCard title="Total Incidents" value={stats?.total_incidents || 0} icon={AlertTriangle} color="var(--color-warning)" />
         <StatCard title="Pending Review" value={stats?.pending_incidents || 0} icon={Clock} color="var(--color-info)" />
+        <StatCard title="Very High Risk" value={stats?.very_high_risk_incidents || 0} icon={ShieldAlert} color="var(--color-danger)" />
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: 24 }}>

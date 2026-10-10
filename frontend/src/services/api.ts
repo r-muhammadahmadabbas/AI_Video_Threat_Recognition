@@ -172,4 +172,9 @@ export const api = {
     const response = await http.get('/health/ready')
     return response.data
   },
+
+  getDashboardStats: async () => {
+    const response = await http.get('/dashboard/stats')
+    return response.data
+  },
 }
