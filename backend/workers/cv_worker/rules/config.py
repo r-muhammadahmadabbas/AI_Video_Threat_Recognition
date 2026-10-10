@@ -118,6 +118,32 @@ class LoiterConfig(BaseModel):
         return exit_seconds <= self.grace_seconds
 
 
+class PersonDownConfig(BaseModel):
+    """Thresholds for person-down (horizontal posture) detection.
+
+    A person is considered "down" when their bounding box is wider than it is
+    tall by a configurable margin. This is evaluated per-frame on the track's
+    current bbox.
+
+    Attributes:
+        aspect_ratio_threshold: width / height ratio above which the track is
+            considered horizontal. ``> 1.0`` means wider than tall.
+        min_confidence: minimum detection confidence to consider.
+        cooldown_seconds: minimum gap between two incidents for the same track.
+        min_frames_down: consecutive frames the ratio must exceed the threshold
+            before triggering. Filters single-frame pose jitter.
+        point: which point of the bbox to use for zone containment (if zone-bound).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    aspect_ratio_threshold: float = Field(default=1.2, gt=1.0, le=5.0)
+    min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
+    cooldown_seconds: float = Field(default=60.0, ge=0.0)
+    min_frames_down: int = Field(default=3, ge=1)
+    point: Literal["bottom_center", "center"] = "bottom_center"
+
+
 class ZoneConfig(BaseModel):
     """Coordinate convention for a zone polygon.
 

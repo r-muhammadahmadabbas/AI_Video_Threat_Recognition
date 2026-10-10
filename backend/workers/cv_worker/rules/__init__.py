@@ -19,6 +19,7 @@ from workers.cv_worker.rules.base import (
 )
 from workers.cv_worker.rules.config import (
     LoiterConfig,
+    PersonDownConfig,
     ZoneConfig,
     ZoneEntryConfig,
     build_config,
@@ -26,6 +27,7 @@ from workers.cv_worker.rules.config import (
 from workers.cv_worker.rules.engine import RuleEngine, zone_to_pixel_polygon
 from workers.cv_worker.rules.geometry import InvalidPolygonError, Polygon
 from workers.cv_worker.rules.loitering import LoiterRule
+from workers.cv_worker.rules.person_down import PersonDownRule
 from workers.cv_worker.rules.restricted_zone import PresenceState, ZoneEntryRule
 
 __all__ = [
@@ -33,6 +35,8 @@ __all__ = [
     "InvalidPolygonError",
     "LoiterConfig",
     "LoiterRule",
+    "PersonDownConfig",
+    "PersonDownRule",
     "Polygon",
     "PresenceState",
     "RuleEngine",
