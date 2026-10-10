@@ -1,6 +1,7 @@
 import os
 import tempfile
 import time
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import cv2
@@ -8,6 +9,7 @@ import numpy as np
 import pytest
 
 from app.config import settings
+from app.evidence.storage import LocalEvidenceStore
 from workers.cv_worker.detector import Detection
 from workers.cv_worker.incident_sink import DatabaseIncidentSink, LogIncidentSink
 from workers.cv_worker.main import CVWorker
@@ -580,15 +582,28 @@ class TestTrackerConfiguration:
 
 
 class RecordingSink:
+    """Files every record (returning an id) and remembers evidence attaches."""
+
     def __init__(self):
         self.records = []
+        self.attachments = []
+        self._next_id = 1
 
     def record(self, record):
         self.records.append(record)
+        incident_id = self._next_id
+        self._next_id += 1
+        return incident_id
+
+    def attach_evidence(self, incident_id, attachment):
+        self.attachments.append((incident_id, attachment))
 
 
 class RaisingSink:
     def record(self, record):
+        raise RuntimeError("database unavailable")
+
+    def attach_evidence(self, incident_id, attachment):
         raise RuntimeError("database unavailable")
 
 
@@ -667,4 +682,95 @@ class TestIncidentPersistence:
         self._run(worker)
 
         assert worker._failed_records == 1
+        assert worker._processed_frames > 0
+
+
+class TestIncidentEvidence:
+    """S4: a trigger opens a capture window that becomes a stored clip +
+    thumbnail linked to the filed incident, and failures never kill the loop."""
+
+    @pytest.fixture
+    def rule_video(self):
+        with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as f:
+            path = f.name
+        _create_test_video(path, frames=60)
+        yield path
+        _remove_video(path)
+
+    def test_trigger_produces_stored_clip_and_thumbnail(self, rule_video, tmp_path):
+        sink = RecordingSink()
+        store = LocalEvidenceStore(tmp_path / "evidence")
+        worker = CVWorker(
+            source_id="test_cam",
+            source_path=rule_video,
+            display=False,
+            zones=[TestCVWorkerRuleEngine._zone()],
+            rules=[TestCVWorkerRuleEngine._rule()],
+            camera_id=7,
+            incident_sink=sink,
+            evidence_store=store,
+        )
+        worker._video_source = worker._create_source()
+        worker._detector = MagicMock()
+        worker._detector.detect.return_value = [
+            TestCVWorkerRuleEngine._detection(TestCVWorkerRuleEngine.INSIDE)
+        ]
+        worker._tracker = ByteTrackTracker(frame_rate=30.0)
+
+        TestIncidentPersistence._run(worker)
+
+        assert worker._recorded_incidents == 1
+        assert worker._stored_evidence == 1
+        assert worker._failed_evidence == 0
+        assert len(sink.attachments) == 1
+
+        incident_id, attachment = sink.attachments[0]
+        assert incident_id == 1
+        assert attachment.evidence_type == "clip"
+        assert attachment.duration_seconds > 0
+
+        clip_path = Path(store.resolve(attachment.key))
+        assert clip_path.exists()
+        assert attachment.size_bytes == clip_path.stat().st_size
+        assert attachment.thumbnail_key is not None
+        assert Path(store.resolve(attachment.thumbnail_key)).exists()
+
+        assert attachment.metadata_json["rule_id"] == "rule_entry"
+        assert attachment.metadata_json["tracker_id"] >= 1
+
+        cap = cv2.VideoCapture(str(clip_path))
+        read_frames = 0
+        while cap.read()[0]:
+            read_frames += 1
+        cap.release()
+        assert read_frames >= 1
+
+    def test_evidence_failure_is_isolated_from_detection(self, rule_video, tmp_path):
+        store = LocalEvidenceStore(tmp_path / "evidence")
+        worker = CVWorker(
+            source_id="test_cam",
+            source_path=rule_video,
+            display=False,
+            zones=[TestCVWorkerRuleEngine._zone()],
+            rules=[TestCVWorkerRuleEngine._rule()],
+            camera_id=7,
+            incident_sink=RecordingSink(),
+            evidence_store=store,
+        )
+        worker._video_source = worker._create_source()
+        worker._detector = MagicMock()
+        worker._detector.detect.return_value = [
+            TestCVWorkerRuleEngine._detection(TestCVWorkerRuleEngine.INSIDE)
+        ]
+        worker._tracker = ByteTrackTracker(frame_rate=30.0)
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("disk full")
+
+        worker._clip_writer.cut = boom
+
+        TestIncidentPersistence._run(worker)
+
+        assert worker._recorded_incidents == 1
+        assert worker._failed_evidence == 1
         assert worker._processed_frames > 0

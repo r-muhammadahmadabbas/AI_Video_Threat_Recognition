@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 
 __all__ = [
     "DatabaseIncidentSink",
+    "EvidenceAttachment",
     "IncidentRecord",
     "IncidentSink",
     "LogIncidentSink",
@@ -84,9 +85,29 @@ class IncidentRecord:
 
 
 class IncidentSink(Protocol):
-    """Receives incidents as they are triggered."""
+    """Receives incidents as they are triggered.
 
-    def record(self, record: IncidentRecord) -> None: ...
+    ``record`` returns the stored incident's id (when persistence produced
+    one) so the caller can attach evidence to the right row. Sinks that do not
+    persist (logging) return ``None``.
+    """
+
+    def record(self, record: IncidentRecord) -> int | None: ...
+
+    def attach_evidence(self, incident_id: int, attachment: EvidenceAttachment) -> None: ...
+
+
+@dataclass(frozen=True)
+class EvidenceAttachment:
+    """A stored artifact linked to one incident, addressed by storage key."""
+
+    key: str
+    incident_id: int
+    evidence_type: str = "clip"
+    thumbnail_key: str | None = None
+    duration_seconds: float | None = None
+    size_bytes: int | None = None
+    metadata_json: Mapping[str, Any] = field(default_factory=dict)
 
 
 class LogIncidentSink:
@@ -96,7 +117,7 @@ class LogIncidentSink:
     file that was never registered as a camera must not invent one.
     """
 
-    def record(self, record: IncidentRecord) -> None:
+    def record(self, record: IncidentRecord) -> int | None:
         logger.warning(
             "Threat trigger (logged only, not filed)",
             camera_id=record.camera_id,
@@ -104,6 +125,15 @@ class LogIncidentSink:
             severity=record.severity,
             confidence=record.confidence,
             metadata=dict(record.metadata),
+        )
+        return None
+
+    def attach_evidence(self, incident_id: int, attachment: EvidenceAttachment) -> None:
+        del incident_id  # nothing to attach to; the trigger was only logged
+        logger.info(
+            "Evidence captured (nothing to attach to; trigger was logged only)",
+            evidence_type=attachment.evidence_type,
+            key=attachment.key,
         )
 
 
@@ -116,10 +146,10 @@ class DatabaseIncidentSink:
 
     # The camera id travels with each record, so one instance stays reusable
     # and a filed incident cannot drift from the camera that produced it.
-    def record(self, record: IncidentRecord) -> None:
-        asyncio.run(self._insert(record))
+    def record(self, record: IncidentRecord) -> int | None:
+        return asyncio.run(self._insert(record))
 
-    async def _insert(self, record: IncidentRecord) -> None:
+    async def _insert(self, record: IncidentRecord) -> int:
         # Imported here rather than at module scope: importing the session
         # factory builds a database engine, and a worker replaying files
         # with no camera id should never pay for one.
@@ -163,4 +193,35 @@ class DatabaseIncidentSink:
             event_type=record.event_type,
             severity=record.severity,
             confidence=record.confidence,
+        )
+        return incident_id
+
+    def attach_evidence(self, incident_id: int, attachment: EvidenceAttachment) -> None:
+        asyncio.run(self._insert_evidence(incident_id, attachment))
+
+    async def _insert_evidence(
+        self, incident_id: int, attachment: EvidenceAttachment
+    ) -> None:
+        from app.db.models import IncidentEvidence  # noqa: PLC0415
+        from app.db.session import async_session_maker  # noqa: PLC0415
+
+        evidence = IncidentEvidence(
+            incident_id=incident_id,
+            evidence_type=attachment.evidence_type,
+            uri=attachment.key,
+            thumbnail_uri=attachment.thumbnail_key,
+            duration_seconds=attachment.duration_seconds,
+            size_bytes=attachment.size_bytes,
+            metadata_json=dict(attachment.metadata_json),
+        )
+        async with async_session_maker() as session:
+            session.add(evidence)
+            await session.commit()
+
+        logger.info(
+            "Evidence attached",
+            incident_id=incident_id,
+            evidence_id=evidence.id,
+            evidence_type=attachment.evidence_type,
+            key=attachment.key,
         )
