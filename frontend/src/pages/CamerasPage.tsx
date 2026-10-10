@@ -1,11 +1,11 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { Plus, Edit, Trash2, Search, Video, Wifi, WifiOff, Loader2 } from 'lucide-react'
+import { Plus, Edit, Trash2, Video, Wifi, WifiOff, Loader2 } from 'lucide-react'
 
 export function CamerasPage() {
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [page] = useState(1)
   const [search, setSearch] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any>(null)

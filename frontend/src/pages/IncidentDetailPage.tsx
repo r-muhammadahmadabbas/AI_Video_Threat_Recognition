@@ -1,20 +1,39 @@
 import { useParams } from 'react-router-dom'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { AlertTriangle, CheckCircle, XCircle, Clock, Video, MapPin, Shield, Download, Eye } from 'lucide-react'
+import { AlertTriangle, CheckCircle, XCircle, Clock, Video, Download, Eye } from 'lucide-react'
 
 export function IncidentDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const queryClient = useQueryClient()
   const { data: incident, isLoading } = useQuery({
     queryKey: ['incident', id],
     queryFn: () => api.getIncident(Number(id)),
     enabled: !!id,
+    refetchInterval: 5000,
   })
 
   const { data: evidence } = useQuery({
     queryKey: ['evidence', id],
     queryFn: () => api.getEvidence(Number(id)),
     enabled: !!id,
+    refetchInterval: 5000,
+  })
+
+  const verifyMutation = useMutation({
+    mutationFn: () => api.verifyIncident(Number(id), true),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incident', id] })
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+    },
+  })
+
+  const dismissMutation = useMutation({
+    mutationFn: () => api.dismissIncident(Number(id)),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incident', id] })
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+    },
   })
 
   const getSeverityBadge = (s: string) => {
@@ -51,6 +70,18 @@ export function IncidentDetailPage() {
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
           {getStatusBadge(incident.status)}
           {getSeverityBadge(incident.severity)}
+          {(incident.status === 'detected' || incident.status === 'pending_review') && (
+            <>
+              <button className="btn btn-primary" onClick={() => verifyMutation.mutate()} disabled={verifyMutation.isPending}>
+                <CheckCircle style={{ width: 16, height: 16 }} />
+                Verify
+              </button>
+              <button className="btn btn-ghost" onClick={() => dismissMutation.mutate()} disabled={dismissMutation.isPending}>
+                <XCircle style={{ width: 16, height: 16 }} />
+                Dismiss
+              </button>
+            </>
+          )}
         </div>
       </div>
 

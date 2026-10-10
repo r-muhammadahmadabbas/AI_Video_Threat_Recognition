@@ -2,14 +2,14 @@ import axios from 'axios'
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
-const api = axios.create({
+const http = axios.create({
   baseURL: API_BASE,
   headers: {
     'Content-Type': 'application/json',
   },
 })
 
-api.interceptors.request.use((config) => {
+http.interceptors.request.use((config) => {
   const token = localStorage.getItem('access_token')
   if (token) {
     config.headers.Authorization = `Bearer ${token}`
@@ -17,7 +17,7 @@ api.interceptors.request.use((config) => {
   return config
 })
 
-api.interceptors.response.use(
+http.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
@@ -30,7 +30,7 @@ api.interceptors.response.use(
           localStorage.setItem('access_token', response.data.access_token)
           localStorage.setItem('refresh_token', response.data.refresh_token)
           originalRequest.headers.Authorization = `Bearer ${response.data.access_token}`
-          return api(originalRequest)
+          return http(originalRequest)
         } catch {
           localStorage.removeItem('access_token')
           localStorage.removeItem('refresh_token')
@@ -47,120 +47,120 @@ export const api = {
     const formData = new FormData()
     formData.append('username', email)
     formData.append('password', password)
-    const response = await api.post('/auth/login', formData, {
+    const response = await http.post('/auth/login', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
     return response.data
   },
 
   getCurrentUser: async () => {
-    const response = await api.get('/auth/me')
+    const response = await http.get('/auth/me')
     return response.data
   },
 
   getCameras: async (params?: Record<string, any>) => {
-    const response = await api.get('/cameras', { params })
+    const response = await http.get('/cameras', { params })
     return response.data
   },
 
   createCamera: async (data: any) => {
-    const response = await api.post('/cameras', data)
+    const response = await http.post('/cameras', data)
     return response.data
   },
 
   updateCamera: async (id: number, data: any) => {
-    const response = await api.patch(`/cameras/${id}`, data)
+    const response = await http.patch(`/cameras/${id}`, data)
     return response.data
   },
 
   deleteCamera: async (id: number) => {
-    await api.delete(`/cameras/${id}`)
+    await http.delete(`/cameras/${id}`)
   },
 
   getIncidents: async (params?: Record<string, any>) => {
-    const response = await api.get('/incidents', { params })
+    const response = await http.get('/incidents', { params })
     return response.data
   },
 
   getIncident: async (id: number) => {
-    const response = await api.get(`/incidents/${id}`)
+    const response = await http.get(`/incidents/${id}`)
     return response.data
   },
 
   verifyIncident: async (id: number, verified: boolean) => {
-    const response = await api.post(`/incidents/${id}/verify`, { verified })
+    const response = await http.post(`/incidents/${id}/verify`, { verified })
     return response.data
   },
 
   dismissIncident: async (id: number) => {
-    const response = await api.post(`/incidents/${id}/dismiss`)
+    const response = await http.post(`/incidents/${id}/dismiss`)
     return response.data
   },
 
   getZones: async (params?: Record<string, any>) => {
-    const response = await api.get('/zones', { params })
+    const response = await http.get('/zones', { params })
     return response.data
   },
 
   createZone: async (data: any) => {
-    const response = await api.post('/zones', data)
+    const response = await http.post('/zones', data)
     return response.data
   },
 
   updateZone: async (id: number, data: any) => {
-    const response = await api.patch(`/zones/${id}`, data)
+    const response = await http.patch(`/zones/${id}`, data)
     return response.data
   },
 
   deleteZone: async (id: number) => {
-    await api.delete(`/zones/${id}`)
+    await http.delete(`/zones/${id}`)
   },
 
   getRules: async (params?: Record<string, any>) => {
-    const response = await api.get('/rules', { params })
+    const response = await http.get('/rules', { params })
     return response.data
   },
 
   createRule: async (data: any) => {
-    const response = await api.post('/rules', data)
+    const response = await http.post('/rules', data)
     return response.data
   },
 
   updateRule: async (id: number, data: any) => {
-    const response = await api.patch(`/rules/${id}`, data)
+    const response = await http.patch(`/rules/${id}`, data)
     return response.data
   },
 
   deleteRule: async (id: number) => {
-    await api.delete(`/rules/${id}`)
+    await http.delete(`/rules/${id}`)
   },
 
   getUsers: async (params?: Record<string, any>) => {
-    const response = await api.get('/users', { params })
+    const response = await http.get('/users', { params })
     return response.data
   },
 
   createUser: async (data: any) => {
-    const response = await api.post('/users', data)
+    const response = await http.post('/users', data)
     return response.data
   },
 
   updateUser: async (id: number, data: any) => {
-    const response = await api.patch(`/users/${id}`, data)
+    const response = await http.patch(`/users/${id}`, data)
     return response.data
   },
 
   deleteUser: async (id: number) => {
-    await api.delete(`/users/${id}`)
+    await http.delete(`/users/${id}`)
   },
 
   getAuditLogs: async (params?: Record<string, any>) => {
-    const response = await api.get('/audit', { params })
+    const response = await http.get('/audit', { params })
     return response.data
   },
 
   getEvidence: async (incidentId: number, params?: Record<string, any>) => {
-    const response = await api.get(`/evidence/incident/${incidentId}`, { params })
+    const response = await http.get(`/evidence/incident/${incidentId}`, { params })
     return response.data
   },
 
@@ -169,7 +169,7 @@ export const api = {
   getEvidenceThumbnail: (evidenceId: number) => `${API_BASE}/evidence/${evidenceId}/thumbnail`,
 
   healthCheck: async () => {
-    const response = await api.get('/health/ready')
+    const response = await http.get('/health/ready')
     return response.data
   },
 }

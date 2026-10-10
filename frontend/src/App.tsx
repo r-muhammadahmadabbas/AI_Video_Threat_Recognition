@@ -34,21 +34,17 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={!isAuthenticated ? <LoginPage /> : <Navigate to="/" replace />} />
-      <Route
-        element={
-          <ProtectedRoute>
-            <Layout />
-          </ProtectedRoute>
-        }
-      >
-        <Route path="/" element={<DashboardPage />} />
-        <Route path="/incidents" element={<IncidentsPage />} />
-        <Route path="/incidents/:id" element={<IncidentDetailPage />} />
-        <Route path="/cameras" element={<CamerasPage />} />
-        <Route path="/zones" element={<ZonesPage />} />
-        <Route path="/rules" element={<RulesPage />} />
-        <Route path="/users" element={<UsersPage />} />
-        <Route path="/audit" element={<AuditPage />} />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/incidents" element={<IncidentsPage />} />
+          <Route path="/incidents/:id" element={<IncidentDetailPage />} />
+          <Route path="/cameras" element={<CamerasPage />} />
+          <Route path="/zones" element={<ZonesPage />} />
+          <Route path="/rules" element={<RulesPage />} />
+          <Route path="/users" element={<UsersPage />} />
+          <Route path="/audit" element={<AuditPage />} />
+        </Route>
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -57,9 +53,11 @@ function AppRoutes() {
 
 function App() {
   return (
-    <AuthProvider>
-      <AppRoutes />
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </QueryClientProvider>
   )
 }
 

@@ -1,13 +1,13 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { Search, Filter, ChevronLeft, ChevronRight, Loader2, FileText } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Loader2, FileText } from 'lucide-react'
 
 const ACTIONS = ['login', 'logout', 'incident_view', 'incident_verify', 'incident_dismiss', 'camera_create', 'camera_update', 'camera_delete', 'zone_create', 'zone_update', 'zone_delete', 'rule_create', 'rule_update', 'rule_delete', 'user_create', 'user_update', 'user_delete', 'settings_change', 'export_data'] as const
 
 export function AuditPage() {
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(50)
+  const [pageSize] = useState(50)
   const [action, setAction] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')

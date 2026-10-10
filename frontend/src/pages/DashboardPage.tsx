@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { Camera, AlertTriangle, CheckCircle, XCircle, Clock, Users, Video } from 'lucide-react'
+import { AlertTriangle, CheckCircle, Clock, Video } from 'lucide-react'
 
 interface DashboardStats {
   total_cameras: number

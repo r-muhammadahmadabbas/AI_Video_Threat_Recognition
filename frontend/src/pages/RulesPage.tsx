@@ -8,10 +8,10 @@ const SEVERITIES = ['low', 'medium', 'high', 'critical'] as const
 
 export function RulesPage() {
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [page] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any>(null)
-  const [formData, setFormData] = useState({ name: '', camera_id: 0, zone_id: undefined, rule_type: 'restricted_zone_entry', severity: 'medium', is_active: true, config_json: {}, cooldown_seconds: 60, model_version: '' })
+  const [formData, setFormData] = useState({ name: '', camera_id: 0, zone_id: undefined as number | undefined, rule_type: 'restricted_zone_entry', severity: 'medium', is_active: true, config_json: {}, cooldown_seconds: 60, model_version: '' })
 
   const { data: rulesData } = useQuery({ queryKey: ['rules', page], queryFn: () => api.getRules({ page, page_size: 20 }) })
   const { data: camerasData } = useQuery({ queryKey: ['cameras-all'], queryFn: () => api.getCameras({ page_size: 100 }) })
@@ -21,7 +21,7 @@ export function RulesPage() {
   const updateMutation = useMutation({ mutationFn: ({ id, data }: { id: number; data: any }) => api.updateRule(id, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['rules'] }); setEditing(null); resetForm() } })
   const deleteMutation = useMutation({ mutationFn: api.deleteRule, onSuccess: () => queryClient.invalidateQueries({ queryKey: ['rules'] }) })
 
-  const resetForm = () => setFormData({ name: '', camera_id: 0, zone_id: undefined, rule_type: 'restricted_zone_entry', severity: 'medium', is_active: true, config_json: {}, cooldown_seconds: 60, model_version: '' })
+  const resetForm = () => setFormData({ name: '', camera_id: 0, zone_id: undefined as number | undefined, rule_type: 'restricted_zone_entry', severity: 'medium', is_active: true, config_json: {}, cooldown_seconds: 60, model_version: '' })
 
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); if (editing) updateMutation.mutate({ id: editing.id, data: formData }); else createMutation.mutate(formData) }
   const startEdit = (rule: any) => { setEditing(rule); setFormData({...rule, zone_id: rule.zone_id || undefined}); setShowForm(true) }

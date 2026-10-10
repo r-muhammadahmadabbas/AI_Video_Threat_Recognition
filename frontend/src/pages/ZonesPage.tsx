@@ -7,7 +7,7 @@ const ZONE_TYPES = ['restricted', 'loitering', 'privacy', 'crowd'] as const
 
 export function ZonesPage() {
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [page] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [formData, setFormData] = useState({ name: '', camera_id: 0, zone_type: 'restricted', polygon: [[]], is_active: true })
@@ -53,7 +53,6 @@ export function ZonesPage() {
 
   const handleDelete = (id: number) => { if (confirm('Delete this zone?')) deleteMutation.mutate(id) }
 
-  const typeIcons: Record<string, any> = { restricted: MapPin, loitering: MapPin, privacy: MapPin, crowd: MapPin }
   const typeColors: Record<string, string> = { restricted: 'badge-danger', loitering: 'badge-warning', privacy: 'badge-info', crowd: 'badge-primary' }
 
   return (

@@ -7,7 +7,7 @@ const ROLES = ['admin', 'operator', 'viewer'] as const
 
 export function UsersPage() {
   const queryClient = useQueryClient()
-  const [page, setPage] = useState(1)
+  const [page] = useState(1)
   const [showForm, setShowForm] = useState(false)
   const [editing, setEditing] = useState<any>(null)
   const [formData, setFormData] = useState({ email: '', password: '', full_name: '', role: 'viewer', is_active: true })

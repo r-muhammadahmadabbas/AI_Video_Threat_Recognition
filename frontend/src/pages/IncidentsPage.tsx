@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '../services/api'
-import { Search, Filter, ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, AlertTriangle, CheckCircle, XCircle, Clock } from 'lucide-react'
 
 const SEVERITY_OPTIONS = ['low', 'medium', 'high', 'critical'] as const
 const STATUS_OPTIONS = ['detected', 'pending_review', 'verified', 'dismissed', 'merged'] as const
 
 export function IncidentsPage() {
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(20)
+  const [pageSize] = useState(20)
   const [search, setSearch] = useState('')
   const [severity, setSeverity] = useState<string>('')
   const [status, setStatus] = useState<string>('')
@@ -22,6 +22,7 @@ export function IncidentsPage() {
       severity: severity || undefined,
       status: status || undefined,
     }),
+    refetchInterval: 5000,
   })
 
   const getSeverityBadge = (s: string) => {
