@@ -144,6 +144,58 @@ class PersonDownConfig(BaseModel):
     point: Literal["bottom_center", "center"] = "bottom_center"
 
 
+class AltercationConfig(BaseModel):
+    """Thresholds for physical-altercation candidate detection (Sprint 6A/6B).
+
+    The rule looks at pairs of tracked people who are both inside the bound
+    zone. A pair counts as a candidate when it stays within a small center
+    distance while both members move and the relative centroid speed stays
+    high, evaluated over a rolling time window. Every threshold here is a
+    number an administrator tunes per camera: what is suspicious in a corridor
+    may be normal in a sports area.
+
+    Attributes:
+        entry_margin/exit_margin: hysteresis multipliers, as for every rule.
+            A pair only participates once both members are definitively in the
+            zone, so subjects hovering on the line do not flicker.
+        point: which bbox point the engine tests against the zone polygon.
+        max_pair_distance_px: maximum distance between the two centers for the
+            pair to count as "nearby". Above this the pair's history resets.
+        min_movement_px_per_s: how far each member must travel per second for
+            the pair to count as actively moving. Filters people standing close
+            (just talking) while still flagging engaged motion.
+        min_relative_speed_px_per_s: minimum relative centroid speed of the
+            pair. A constant 0 means two people standing still never fires;
+            the signal is about approach/agitation, not mere proximity.
+        speed_window_seconds: the rolling window the velocity signals are
+            measured over. Wider windows smooth single-frame jitter; narrower
+            windows react faster.
+        min_aggression_frames: consecutive frames on which all signals hold
+            before a trigger opens. This is the "require persistence" part of
+            the temporal rule, so a single fast approach is not enough.
+        min_confidence: minimum detection confidence to consider at all.
+        cooldown_seconds: minimum gap between two triggers for the same pair.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
+    exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
+    point: Literal["bottom_center", "center"] = "bottom_center"
+    max_pair_distance_px: float = Field(default=150.0, gt=0.0)
+    min_movement_px_per_s: float = Field(default=20.0, ge=0.0)
+    min_relative_speed_px_per_s: float = Field(default=60.0, ge=0.0)
+    speed_window_seconds: float = Field(default=1.0, gt=0.0)
+    min_aggression_frames: int = Field(default=5, ge=1)
+    min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
+    cooldown_seconds: float = Field(default=180.0, ge=0.0)
+
+    @model_validator(mode="after")
+    def _exit_must_be_tighter_than_entry(self) -> AltercationConfig:
+        _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
+
+
 class ZoneConfig(BaseModel):
     """Coordinate convention for a zone polygon.
 
