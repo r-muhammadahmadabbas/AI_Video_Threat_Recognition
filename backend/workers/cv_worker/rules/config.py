@@ -196,6 +196,79 @@ class AltercationConfig(BaseModel):
         return self
 
 
+class CrowdAnomalyConfig(BaseModel):
+    """Thresholds for abnormal-crowd-movement candidate detection (Sprint 7A/7B).
+
+    The rule aggregates per-frame crowd features over a short observation
+    window, compares them to a rolling short-term baseline per camera, and
+    emits a transparent weighted anomaly score. The score is the sum over the
+    four features of ``weight * |current - baseline| / max(baseline, 1.0)``,
+    so each feature's contribution is visible and tunable per camera (7D).
+
+    Attributes:
+        entry_margin/exit_margin: hysteresis multipliers, as for every rule.
+        point: which bbox point the engine tests against the zone polygon.
+        observation_window_seconds: rolling window the current features are
+            averaged over. Shorter reacts faster; longer smooths frame noise.
+        baseline_window_seconds: rolling window the baseline is estimated over.
+            Must be longer than the observation window so the baseline reflects
+            the "normal" behaviour just before the current moment, not the
+            current behaviour itself.
+        min_baseline_snapshots: how many frames of baseline are required before
+            the rule is allowed to trigger. Prevents a camera warming up from
+            alerting on its first moments.
+        min_tracks: minimum active track count for the rule to be eligible at
+            all. Below this the score is ignored, so sparse scenes never fire.
+        min_confidence: minimum detection confidence to consider at all.
+        score_threshold: weighted anomaly score above which the scene is a
+            candidate. Tune per camera by replaying known clips (7D).
+        min_duration_seconds: how long the score must stay above the threshold
+            before a trigger opens. This is the persistence guard: a one-frame
+            surge (e.g. a dropped track) must not alert.
+        cooldown_seconds: minimum gap between two triggers for this zone.
+        weight_track_count: contribution weight for the active-track-count feature.
+        weight_mean_speed: contribution weight for the mean per-track speed.
+        weight_direction_dispersion: contribution weight for the angular spread
+            of track velocity directions.
+        weight_mean_pair_distance: contribution weight for the mean pairwise
+            center distance. This is the inverse proxy for zone density:
+            a crowd packing together shows up as a sharp drop in pair distance.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
+    exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
+    point: Literal["bottom_center", "center"] = "bottom_center"
+    observation_window_seconds: float = Field(default=2.0, gt=0.0)
+    baseline_window_seconds: float = Field(default=30.0, gt=0.0)
+    min_baseline_snapshots: int = Field(default=3, ge=1)
+    min_tracks: int = Field(default=3, ge=1)
+    min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
+    score_threshold: float = Field(default=1.5, gt=0.0)
+    min_duration_seconds: float = Field(default=3.0, gt=0.0)
+    cooldown_seconds: float = Field(default=300.0, ge=0.0)
+    weight_track_count: float = Field(default=1.0, ge=0.0)
+    weight_mean_speed: float = Field(default=1.0, ge=0.0)
+    weight_direction_dispersion: float = Field(default=1.0, ge=0.0)
+    weight_mean_pair_distance: float = Field(default=1.0, ge=0.0)
+
+    @model_validator(mode="after")
+    def _baseline_must_be_longer_than_observation(self) -> CrowdAnomalyConfig:
+        if self.baseline_window_seconds <= self.observation_window_seconds:
+            raise ValueError(
+                "baseline_window_seconds must be greater than "
+                "observation_window_seconds, otherwise the baseline would "
+                "reflect the current behaviour rather than the norm"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _exit_must_be_tighter_than_entry(self) -> CrowdAnomalyConfig:
+        _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
+
+
 class ZoneConfig(BaseModel):
     """Coordinate convention for a zone polygon.
 
