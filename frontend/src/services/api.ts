@@ -168,6 +168,8 @@ export const api = {
 
   getEvidenceThumbnail: (evidenceId: number) => `${API_BASE}/evidence/${evidenceId}/thumbnail`,
 
+  getCameraSnapshot: (cameraId: number) => `${API_BASE}/cameras/${cameraId}/snapshot`,
+
   healthCheck: async () => {
     const response = await http.get('/health/ready')
     return response.data

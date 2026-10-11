@@ -1,16 +1,15 @@
 from datetime import datetime
-from typing import Optional, List
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+import cv2
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import Response
 from pydantic import BaseModel, HttpUrl
-from sqlalchemy import select, func
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 from app.auth import get_current_active_user, require_role
-from app.config import settings
-from app.db.session import get_session_dependency
 from app.db.models import Camera, CameraSourceType, CameraStatus, User, UserRole
+from app.db.session import get_session_dependency
 from app.logging import get_logger
 
 logger = get_logger(__name__)
@@ -22,8 +21,8 @@ class CameraBase(BaseModel):
     name: str
     source_type: CameraSourceType
     source_url: HttpUrl
-    username: Optional[str] = None
-    password: Optional[str] = None
+    username: str | None = None
+    password: str | None = None
     inference_enabled: bool = True
     inference_fps: float = 5.0
     config_json: dict = {}
@@ -34,24 +33,24 @@ class CameraCreate(CameraBase):
 
 
 class CameraUpdate(BaseModel):
-    name: Optional[str] = None
-    source_url: Optional[HttpUrl] = None
-    username: Optional[str] = None
-    password: Optional[str] = None
-    is_active: Optional[bool] = None
-    inference_enabled: Optional[bool] = None
-    inference_fps: Optional[float] = None
-    config_json: Optional[dict] = None
+    name: str | None = None
+    source_url: HttpUrl | None = None
+    username: str | None = None
+    password: str | None = None
+    is_active: bool | None = None
+    inference_enabled: bool | None = None
+    inference_fps: float | None = None
+    config_json: dict | None = None
 
 
 class CameraResponse(CameraBase):
     id: int
     status: CameraStatus
-    fps: Optional[float]
-    width: Optional[int]
-    height: Optional[int]
+    fps: float | None
+    width: int | None
+    height: int | None
     is_active: bool
-    owner_id: Optional[int]
+    owner_id: int | None
     created_at: datetime
     updated_at: datetime
 
@@ -60,7 +59,7 @@ class CameraResponse(CameraBase):
 
 
 class CameraListResponse(BaseModel):
-    items: List[CameraResponse]
+    items: list[CameraResponse]
     total: int
     page: int
     page_size: int
@@ -87,8 +86,8 @@ async def create_camera(
 async def list_cameras(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    is_active: Optional[bool] = None,
-    status: Optional[CameraStatus] = None,
+    is_active: bool | None = None,
+    status: CameraStatus | None = None,
     session: AsyncSession = Depends(get_session_dependency),
     current_user: User = Depends(get_current_active_user),
 ) -> CameraListResponse:
@@ -166,3 +165,39 @@ async def delete_camera(
     await session.delete(camera)
     await session.commit()
     logger.info("Camera deleted", camera_id=camera_id, by=current_user.id)
+
+
+@router.get("/{camera_id}/snapshot")
+async def get_camera_snapshot(
+    camera_id: int,
+    session: AsyncSession = Depends(get_session_dependency),
+    current_user: User = Depends(get_current_active_user),
+) -> Response:
+    """Return a single JPEG frame from the camera's video stream."""
+    query = select(Camera).where(Camera.id == camera_id)
+    if current_user.role != UserRole.ADMIN:
+        query = query.where(Camera.owner_id == current_user.id)
+    result = await session.execute(query)
+    camera = result.scalar_one_or_none()
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+
+    # Open the video source and grab one frame
+    cap = cv2.VideoCapture(str(camera.source_url))
+    if camera.username and camera.password:
+        # For RTSP with auth, the URL already contains credentials
+        pass
+
+    if not cap.isOpened():
+        raise HTTPException(status_code=503, detail="Could not open camera stream")
+
+    try:
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            raise HTTPException(status_code=503, detail="Failed to read frame from camera")
+        ok, encoded = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
+        if not ok:
+            raise HTTPException(status_code=500, detail="Failed to encode frame")
+        return Response(content=encoded.tobytes(), media_type="image/jpeg")
+    finally:
+        cap.release()
