@@ -144,6 +144,26 @@ class PersonDownConfig(BaseModel):
     point: Literal["bottom_center", "center"] = "bottom_center"
 
 
+class WeaponConfig(BaseModel):
+    """Thresholds for weapon detection.
+
+    Attributes:
+        dwell_seconds: continuous residency time that counts as weapon alert.
+        grace_seconds: how long a brief exit keeps the residency clock alive.
+        min_confidence: minimum detection confidence to consider.
+        cooldown_seconds: minimum gap between two incidents for the same track.
+        point: which point of the bbox to use for zone containment (if zone-bound).
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    dwell_seconds: float = Field(default=5.0, gt=0.0)
+    grace_seconds: float = Field(default=0.0, ge=0.0)
+    min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
+    cooldown_seconds: float = Field(default=300.0, ge=0.0)
+    point: Literal["bottom_center", "center"] = "bottom_center"
+
+
 class AltercationConfig(BaseModel):
     """Thresholds for physical-altercation candidate detection (Sprint 6A/6B).
 

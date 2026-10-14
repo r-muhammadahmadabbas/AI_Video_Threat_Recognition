@@ -90,6 +90,7 @@ def create_app() -> FastAPI:
     from app.auth.router import router as auth_router
     from app.cameras.router import router as cameras_router
     from app.dashboard.router import router as dashboard_router
+    from app.detection.router import router as detection_router
     from app.evidence.router import router as evidence_router
     from app.incidents.router import router as incidents_router
     from app.rules.router import router as rules_router
@@ -98,6 +99,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth_router, prefix="/auth", tags=["auth"])
     app.include_router(cameras_router, prefix="/cameras", tags=["cameras"])
+    app.include_router(detection_router, tags=["detection"])
     app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
     app.include_router(zones_router, prefix="/zones", tags=["zones"])
     app.include_router(rules_router, prefix="/rules", tags=["rules"])

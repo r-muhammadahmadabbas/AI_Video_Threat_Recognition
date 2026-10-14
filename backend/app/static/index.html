@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Video Threat Recognition</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0b1020;
+            color: #e9eefc;
+            min-height: 100vh;
+        }
+        .header {
+            background: linear-gradient(90deg, #141d32, #11182a);
+            padding: 20px 40px;
+            border-bottom: 1px solid #26314d;
+        }
+        .header h1 { font-size: 24px; font-weight: 700; }
+        .header p { color: #aeb8d4; font-size: 14px; margin-top: 4px; }
+        .container {
+            max-width: 1000px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+        .upload-box {
+            border: 2px dashed #36517b;
+            border-radius: 16px;
+            padding: 60px 40px;
+            text-align: center;
+            background: rgba(255,255,255,0.02);
+            transition: all 0.3s;
+        }
+        .upload-box:hover, .upload-box.dragover {
+            border-color: #75a7ff;
+            background: rgba(117,167,255,0.06);
+        }
+        .upload-box h2 { font-size: 20px; margin-bottom: 12px; }
+        .upload-box p { color: #aeb8d4; margin-bottom: 24px; }
+        .upload-box input[type="file"] { display: none; }
+        .btn {
+            display: inline-block;
+            padding: 12px 32px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        .btn-primary { background: #75a7ff; color: #0b1020; }
+        .btn-primary:hover { background: #9bc0ff; }
+        .results { margin-top: 30px; display: none; }
+        .results.show { display: block; }
+        .results h2 {
+            font-size: 18px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #26314d;
+        }
+        .detection {
+            display: flex;
+            gap: 20px;
+            padding: 16px;
+            border-radius: 12px;
+            margin-bottom: 16px;
+            background: rgba(255,255,255,0.03);
+            border: 1px solid #26314d;
+            align-items: flex-start;
+        }
+        .detection.threat { border-color: #ff7f8f; background: rgba(255,127,143,0.08); }
+        .detection img {
+            width: 320px;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .detection-info { flex: 1; }
+        .detection-info .time {
+            font-weight: 700;
+            font-size: 16px;
+            color: #75a7ff;
+            margin-bottom: 6px;
+        }
+        .detection-info .class {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 4px;
+        }
+        .detection.threat .class { color: #ff7f8f; }
+        .detection-info .conf { font-size: 14px; color: #aeb8d4; margin-bottom: 8px; }
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+        .badge.threat { background: #ff7f8f; color: #0b1020; }
+        .badge.safe { background: #86e0a3; color: #0b1020; }
+        .summary {
+            padding: 16px 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .summary.threats { background: rgba(255,127,143,0.1); border: 1px solid #ff7f8f; }
+        .summary.safe { background: rgba(134,224,163,0.1); border: 1px solid #86e0a3; }
+        .legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+            font-size: 13px;
+        }
+        .legend span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .legend .dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+        .progress { display: none; text-align: center; padding: 40px; }
+        .progress.show { display: block; }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #26314d;
+            border-top-color: #75a7ff;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .error {
+            display: none;
+            padding: 16px 20px;
+            border-radius: 10px;
+            background: rgba(255,127,143,0.1);
+            border: 1px solid #ff7f8f;
+            color: #ff7f8f;
+            margin-top: 20px;
+        }
+        .error.show { display: block; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>AI Video Threat Recognition</h1>
+        <p>Upload a video to detect weapons and threats</p>
+    </div>
+    <div class="container">
+        <div class="upload-box" id="uploadBox">
+            <h2>Drop video here or click to upload</h2>
+            <p>Supports MP4, AVI, MOV (max 500MB)</p>
+            <input type="file" id="fileInput" accept="video/*">
+            <button class="btn btn-primary" onclick="document.getElementById('fileInput').click()">
+                Choose Video
+            </button>
+        </div>
+        <div class="progress" id="progress">
+            <div class="spinner"></div>
+            <p>Analyzing video... This may take a moment.</p>
+        </div>
+        <div class="error" id="error"></div>
+        <div class="results" id="results">
+            <h2>Detection Results</h2>
+            <div class="legend">
+                <span><span class="dot" style="background:#ff0000"></span> Firearm</span>
+                <span><span class="dot" style="background:#ffa500"></span> Melee Weapon</span>
+                <span><span class="dot" style="background:#ffff00"></span> Explosive</span>
+                <span><span class="dot" style="background:#ff00ff"></span> Blunt Weapon</span>
+                <span><span class="dot" style="background:#00ffff"></span> Person</span>
+                <span><span class="dot" style="background:#00ff00"></span> Fire/Smoke</span>
+            </div>
+            <div id="summary"></div>
+            <div id="detections"></div>
+        </div>
+    </div>
+    <script>
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+        const progress = document.getElementById('progress');
+        const results = document.getElementById('results');
+        const error = document.getElementById('error');
+
+        uploadBox.addEventListener('dragover', e => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+        uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
+        uploadBox.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                uploadFile();
+            }
+        });
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length) uploadFile();
+        });
+
+        async function uploadFile() {
+            const file = fileInput.files[0];
+            if (!file) return;
+            progress.classList.add('show');
+            results.classList.remove('show');
+            error.classList.remove('show');
+            uploadBox.style.display = 'none';
+
+            const formData = new FormData();
+            formData.append('video', file);
+
+            try {
+                const resp = await fetch('/api/detect', { method: 'POST', body: formData });
+                const data = await resp.json();
+                if (!resp.ok) throw new Error(data.detail || 'Detection failed');
+                displayResults(data);
+            } catch (err) {
+                error.textContent = err.message;
+                error.classList.add('show');
+            } finally {
+                progress.classList.remove('show');
+                uploadBox.style.display = 'block';
+            }
+        }
+
+        function displayResults(data) {
+            results.classList.add('show');
+            const summary = document.getElementById('summary');
+            const events = data.events || [];
+            const threats = data.detections.filter(d => d.is_threat);
+
+            if (events.length > 0) {
+                summary.className = 'summary threats';
+                const ruleNames = [...new Set(events.map(e => e.rule.replace('_', ' ')))];
+                summary.textContent = ruleNames.join(' + ') + ' detected';
+            } else if (threats.length > 0) {
+                summary.className = 'summary threats';
+                summary.textContent = threats.length + ' threat(s) detected';
+            } else {
+                summary.className = 'summary safe';
+                summary.textContent = 'No threats detected in ' + data.total_frames + ' frames';
+            }
+
+            let html = '';
+
+            if (events.length > 0) {
+                html += '<h3 style="color:#ff7f8f;margin:20px 0 12px;font-size:15px">Rule Alerts</h3>';
+                html += events.map(e => `
+                    <div class="detection threat" style="border-color:${e.severity === 'high' ? '#ff7f8f' : '#f3c969'}">
+                        <div class="detection-info">
+                            <div class="time">t=${e.timestamp}s</div>
+                            <div class="class">${e.rule.replace('_', ' ').toUpperCase()}</div>
+                            <div class="conf">Severity: ${e.severity} | Tracks: ${e.tracker_ids.join(', ')}</div>
+                            <span class="badge ${e.severity === 'high' ? 'threat' : 'safe'}">${e.severity}</span>
+                        </div>
+                    </div>
+                `).join('');
+            }
+
+            html += '<h3 style="color:#75a7ff;margin:20px 0 12px;font-size:15px">Detections</h3>';
+            html += data.detections.map(d => `
+                <div class="detection ${d.is_threat ? 'threat' : ''}">
+                    <img src="data:image/jpeg;base64,${d.frame_image}" alt="frame at ${d.timestamp}s">
+                    <div class="detection-info">
+                        <div class="time">t=${d.timestamp}s | Track #${d.track_id}</div>
+                        <div class="class">${d.class_name}${d.weapon ? ' + WEAPON' : ''}</div>
+                        <div class="conf">Confidence: ${(d.confidence * 100).toFixed(1)}%</div>
+                        <span class="badge ${d.is_threat ? 'threat' : 'safe'}">
+                            ${d.is_threat ? 'Threat' : 'Clear'}
+                        </span>
+                    </div>
+                </div>
+            `).join('');
+
+            document.getElementById('detections').innerHTML = html;
+        }
+    </script>
+</body>
+</html>

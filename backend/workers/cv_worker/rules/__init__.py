@@ -25,6 +25,7 @@ from workers.cv_worker.rules.config import (
     CrowdAnomalyConfig,
     LoiterConfig,
     PersonDownConfig,
+    WeaponConfig,
     ZoneConfig,
     ZoneEntryConfig,
     build_config,
@@ -35,6 +36,7 @@ from workers.cv_worker.rules.geometry import InvalidPolygonError, Polygon
 from workers.cv_worker.rules.loitering import LoiterRule
 from workers.cv_worker.rules.person_down import PersonDownRule
 from workers.cv_worker.rules.restricted_zone import PresenceState, ZoneEntryRule
+from workers.cv_worker.rules.weapon import WeaponRule
 
 __all__ = [
     "AltercationConfig",
@@ -52,6 +54,8 @@ __all__ = [
     "RuleEngine",
     "RuleTrigger",
     "TrackObservation",
+    "WeaponConfig",
+    "WeaponRule",
     "Zone",
     "ZoneConfig",
     "ZoneEntryConfig",
