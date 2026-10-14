@@ -70,8 +70,8 @@ class WeaponDetector:
         model_path: str | None = None,
         confidence: float = 0.25,
         device: str = "cpu",
-        temporal_window: int = 3,
-        temporal_history: int = 8,
+        temporal_window: int = 1,
+        temporal_history: int = 6,
     ) -> None:
         if model_path is None:
             model_path = os.path.join(

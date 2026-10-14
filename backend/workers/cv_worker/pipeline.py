@@ -128,11 +128,11 @@ class SimpleTracker:
 
 
 class DetectionPipeline:
-    """All pre-trained models + all rules in one pipeline."""
+    """All YOLO26 models + all rules in one pipeline."""
 
     def __init__(self, confidence: float = 0.30):
         self.weapon_detector = WeaponDetector(confidence=confidence)
-        self.fall_model = YOLO("models/fall/best.pt")
+        self.pose_model = YOLO("models/pose/yolo26s-pose.pt")
         self.violence_model = YOLO("models/violence/best.pt")
         self.tracker = SimpleTracker()
         self.events: list[RuleEvent] = []
@@ -152,13 +152,29 @@ class DetectionPipeline:
 
         active_tracks = self.tracker.update(person_dets, timestamp)
 
-        # Run fall detection every 30th frame only
-        fall_results = None
+        # Run pose-based fall detection every 30th frame
+        pose_results = None
         if int(timestamp * 25) % 30 == 0:
-            fall_results = self.fall_model.predict(source=frame, conf=0.25, device="cpu", verbose=False)
+            pose_results = self.pose_model.predict(source=frame, conf=0.25, device="cpu", verbose=False)
             for track in active_tracks:
-                if track.aspect_ratio > 1.3:
-                    track.fall_detected = True
+                x1, y1, x2, y2 = [int(v) for v in track.bbox]
+                cx, cy = int((x1+x2)/2), int((y1+y2)/2)
+                for result in pose_results:
+                    if result.keypoints is None:
+                        continue
+                    for kpts in result.keypoints:
+                        kpts_data = kpts.xy.cpu().numpy() if hasattr(kpts.xy, 'cpu') else kpts.xy
+                        if len(kpts_data) == 0:
+                            continue
+                        k = kpts_data[0]
+                        nose_y = k[0][1] if len(k) > 0 else 0
+                        left_ankle_y = k[15][1] if len(k) > 15 else 0
+                        right_ankle_y = k[16][1] if len(k) > 16 else 0
+                        avg_ankle_y = (left_ankle_y + right_ankle_y) / 2
+                        if nose_y > 0 and avg_ankle_y > 0 and nose_y > avg_ankle_y * 0.7:
+                            track.fall_detected = True
+                        elif track.aspect_ratio > 1.3:
+                            track.fall_detected = True
 
         # Run violence detection every 15th frame only
         vio_detected = False
@@ -186,7 +202,7 @@ class DetectionPipeline:
         frame_events = self._run_rules(active_tracks, timestamp, vio_detected)
         self.events.extend(frame_events)
 
-        annotated = self._annotate(frame, active_tracks, weapon_dets, vio_detected, fall_results)
+        annotated = self._annotate(frame, active_tracks, weapon_dets, vio_detected, pose_results)
 
         detections = []
         for track in active_tracks:
