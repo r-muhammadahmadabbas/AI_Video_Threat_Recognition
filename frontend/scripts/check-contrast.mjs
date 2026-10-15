@@ -1,7 +1,10 @@
 import { readFileSync } from "node:fs";
 import { parse, converter } from "culori";
 
-const css = readFileSync(new URL("../src/app/globals.css", import.meta.url), "utf8");
+const css = readFileSync(
+  new URL("../src/app/globals.css", import.meta.url),
+  "utf8",
+);
 
 const vars = {};
 for (const match of css.matchAll(/--([a-z0-9-]+):\s*([^;]+);/gi)) {
@@ -44,7 +47,6 @@ const WHITE = [1, 1, 1, 1];
 const BLACK = [0, 0, 0, 1];
 
 const surface1 = rgba("surface-1");
-const surface2 = rgba("surface-2");
 
 const textPairs = [
   ["foreground", "background"],
@@ -53,9 +55,21 @@ const textPairs = [
   ["muted-foreground", "background"],
   ["muted-foreground", "surface-1"],
   ["primary-foreground", "primary"],
-  ["sev-critical on critical-bg", over(rgba("sev-critical-bg"), surface1), rgba("sev-critical")],
-  ["sev-high on high-bg", over(rgba("sev-high-bg"), surface1), rgba("sev-high")],
-  ["sev-medium on medium-bg", over(rgba("sev-medium-bg"), surface1), rgba("sev-medium")],
+  [
+    "sev-critical on critical-bg",
+    over(rgba("sev-critical-bg"), surface1),
+    rgba("sev-critical"),
+  ],
+  [
+    "sev-high on high-bg",
+    over(rgba("sev-high-bg"), surface1),
+    rgba("sev-high"),
+  ],
+  [
+    "sev-medium on medium-bg",
+    over(rgba("sev-medium-bg"), surface1),
+    rgba("sev-medium"),
+  ],
   ["sev-low on low-bg", over(rgba("sev-low-bg"), surface1), rgba("sev-low")],
   ["ok on ok-bg", over(rgba("ok-bg"), surface1), rgba("ok")],
 ];
@@ -84,9 +98,7 @@ function check(label, a, b, min) {
   const pass = value >= min;
   if (!pass) failures += 1;
   const status = pass ? "PASS" : "FAIL";
-  console.log(
-    `${status}  ${value.toFixed(2)}:1  (min ${min})  ${label}`,
-  );
+  console.log(`${status}  ${value.toFixed(2)}:1  (min ${min})  ${label}`);
 }
 
 console.log("Text pairs (min 4.5:1)");

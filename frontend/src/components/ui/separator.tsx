@@ -14,9 +14,9 @@ const Separator = React.forwardRef<HTMLHRElement, SeparatorProps>(
       <hr
         ref={ref}
         className={cn(
-          "shrink-0 border",
-          className,
+          "shrink-0 border-0 bg-border",
           orientation === "horizontal" ? "h-[1px] w-full" : "w-[1px] h-full",
+          className,
         )}
         aria-orientation={orientation}
         {...(decorative ? { "aria-hidden": true } : {})}

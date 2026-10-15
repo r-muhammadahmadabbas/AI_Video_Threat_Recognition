@@ -1,7 +1,10 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-const root = new URL("../src", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1");
+const root = new URL("../src", import.meta.url).pathname.replace(
+  /^\/([A-Za-z]:)/,
+  "$1",
+);
 
 function walk(dir) {
   const files = [];
