@@ -3,7 +3,7 @@ from datetime import datetime
 import cv2
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
-from pydantic import BaseModel, HttpUrl
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/cameras", tags=["cameras"])
 class CameraBase(BaseModel):
     name: str
     source_type: CameraSourceType
-    source_url: HttpUrl
+    source_url: str
     username: str | None = None
     password: str | None = None
     inference_enabled: bool = True
@@ -34,7 +34,7 @@ class CameraCreate(CameraBase):
 
 class CameraUpdate(BaseModel):
     name: str | None = None
-    source_url: HttpUrl | None = None
+    source_url: str | None = None
     username: str | None = None
     password: str | None = None
     is_active: bool | None = None

@@ -53,12 +53,14 @@ class ZoneListResponse(BaseModel):
     page_size: int
 
 
-def verify_camera_access(camera_id: int, user: User, session: AsyncSession) -> Camera:
+async def verify_camera_access(
+    camera_id: int, user: User, session: AsyncSession
+) -> Camera:
     from app.db.models import Camera
     query = select(Camera).where(Camera.id == camera_id)
     if user.role != UserRole.ADMIN:
         query = query.where(Camera.owner_id == user.id)
-    camera = session.execute(query).scalar_one_or_none()
+    camera = (await session.execute(query)).scalar_one_or_none()
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
     return camera
@@ -70,7 +72,7 @@ async def create_zone(
     session: AsyncSession = Depends(get_session_dependency),
     current_user: User = Depends(require_role(UserRole.ADMIN, UserRole.OPERATOR)),
 ) -> Zone:
-    verify_camera_access(zone_data.camera_id, current_user, session)
+    await verify_camera_access(zone_data.camera_id, current_user, session)
     zone = Zone(**zone_data.model_dump())
     session.add(zone)
     await session.commit()

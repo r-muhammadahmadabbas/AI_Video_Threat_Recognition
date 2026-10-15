@@ -144,8 +144,15 @@ class DetectionPipeline:
             "violence": set(),
         }
 
+    def reset_session(self) -> None:
+        """Clear per-video state so one pipeline instance can be reused safely."""
+        self.tracker = SimpleTracker()
+        self.events.clear()
+        self._crowd_history.clear()
+        for alert_key in self._alerted:
+            self._alerted[alert_key].clear()
+
     def process_frame(self, frame, timestamp):
-        h, w = frame.shape[:2]
         weapon_results = self.weapon_detector.detect(frame)
         person_dets = [(d.bbox, d.confidence) for d in weapon_results if d.class_name == "person"]
         weapon_dets = [d for d in weapon_results if d.is_threat]
