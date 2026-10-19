@@ -301,7 +301,25 @@ class TestDatasets:
 
         labels = rwf_clip_labels(tmp_path)
 
-        assert labels == {"a.avi": {"violence"}, "b.avi": set()}
+        assert labels == {
+            "val/Fight/a.avi": {"violence"},
+            "val/NonFight/b.avi": set(),
+        }
+
+    def test_urfd_negative_csv_adds_false_alarm_clips(self, tmp_path):
+        falls = tmp_path / "falls.csv"
+        falls.write_text("sequence,frame,label\nfall-01,0,1\n", encoding="utf-8")
+        adls = tmp_path / "adls.csv"
+        adls.write_text(
+            "sequence,frame,label\nadl-01,0,-1\nadl-01,1,1\nadl-01,2,-1\n",
+            encoding="utf-8",
+        )
+
+        clips = urfd_gt(falls, fps=1.0, negative_csv=adls)
+
+        assert len(clips["fall-01-cam0.mp4"].events) == 1
+        assert clips["adl-01-cam0.mp4"].events == []
+        assert clips["adl-01-cam0.mp4"].duration == pytest.approx(3.0)
 
 
 class TestSchema:

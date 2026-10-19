@@ -1,0 +1,70 @@
+{"clip": "fall-01-cam0.mp4", "duration": 5.366666666666666, "events": [{"type": "person_down", "start": 2.767, "end": 5.367}]}
+{"clip": "fall-02-cam0.mp4", "duration": 3.7, "events": [{"type": "person_down", "start": 1.333, "end": 3.7}]}
+{"clip": "fall-03-cam0.mp4", "duration": 7.2, "events": [{"type": "person_down", "start": 4.933, "end": 7.2}]}
+{"clip": "fall-04-cam0.mp4", "duration": 3.2333333333333334, "events": [{"type": "person_down", "start": 0.467, "end": 3.233}]}
+{"clip": "fall-05-cam0.mp4", "duration": 5.066666666666666, "events": [{"type": "person_down", "start": 2.633, "end": 5.067}]}
+{"clip": "fall-06-cam0.mp4", "duration": 3.3666666666666667, "events": [{"type": "person_down", "start": 0.367, "end": 3.367}]}
+{"clip": "fall-07-cam0.mp4", "duration": 5.233333333333333, "events": [{"type": "person_down", "start": 2.833, "end": 5.233}]}
+{"clip": "fall-08-cam0.mp4", "duration": 3.066666666666667, "events": [{"type": "person_down", "start": 1.0, "end": 3.067}]}
+{"clip": "fall-09-cam0.mp4", "duration": 6.2, "events": [{"type": "person_down", "start": 4.033, "end": 6.2}]}
+{"clip": "fall-10-cam0.mp4", "duration": 4.366666666666666, "events": [{"type": "person_down", "start": 1.333, "end": 4.367}]}
+{"clip": "fall-11-cam0.mp4", "duration": 4.366666666666666, "events": [{"type": "person_down", "start": 1.633, "end": 4.367}]}
+{"clip": "fall-12-cam0.mp4", "duration": 3.7, "events": [{"type": "person_down", "start": 0.833, "end": 3.7}]}
+{"clip": "fall-13-cam0.mp4", "duration": 2.8666666666666667, "events": [{"type": "person_down", "start": 1.467, "end": 2.867}]}
+{"clip": "fall-14-cam0.mp4", "duration": 2.066666666666667, "events": [{"type": "person_down", "start": 0.533, "end": 2.067}]}
+{"clip": "fall-15-cam0.mp4", "duration": 2.4, "events": [{"type": "person_down", "start": 0.933, "end": 2.4}]}
+{"clip": "fall-16-cam0.mp4", "duration": 1.8666666666666667, "events": [{"type": "person_down", "start": 0.567, "end": 1.867}]}
+{"clip": "fall-17-cam0.mp4", "duration": 3.2, "events": [{"type": "person_down", "start": 1.967, "end": 3.2}]}
+{"clip": "fall-18-cam0.mp4", "duration": 2.2, "events": [{"type": "person_down", "start": 0.533, "end": 2.2}]}
+{"clip": "fall-19-cam0.mp4", "duration": 3.3666666666666667, "events": [{"type": "person_down", "start": 0.833, "end": 3.367}]}
+{"clip": "fall-20-cam0.mp4", "duration": 3.7, "events": [{"type": "person_down", "start": 0.6, "end": 3.7}]}
+{"clip": "fall-21-cam0.mp4", "duration": 1.8666666666666667, "events": [{"type": "person_down", "start": 0.7, "end": 1.867}]}
+{"clip": "fall-22-cam0.mp4", "duration": 1.9, "events": [{"type": "person_down", "start": 0.133, "end": 1.9}]}
+{"clip": "fall-23-cam0.mp4", "duration": 2.533333333333333, "events": [{"type": "person_down", "start": 0.9, "end": 2.533}]}
+{"clip": "fall-24-cam0.mp4", "duration": 2.033333333333333, "events": [{"type": "person_down", "start": 0.4, "end": 2.033}]}
+{"clip": "fall-25-cam0.mp4", "duration": 2.8666666666666667, "events": [{"type": "person_down", "start": 1.5, "end": 2.867}]}
+{"clip": "fall-26-cam0.mp4", "duration": 2.066666666666667, "events": [{"type": "person_down", "start": 0.433, "end": 2.067}]}
+{"clip": "fall-27-cam0.mp4", "duration": 3.1, "events": [{"type": "person_down", "start": 1.7, "end": 3.1}]}
+{"clip": "fall-28-cam0.mp4", "duration": 2.2333333333333334, "events": [{"type": "person_down", "start": 0.9, "end": 2.233}]}
+{"clip": "fall-29-cam0.mp4", "duration": 3.3333333333333335, "events": [{"type": "person_down", "start": 1.633, "end": 3.333}]}
+{"clip": "fall-30-cam0.mp4", "duration": 2.3666666666666667, "events": [{"type": "person_down", "start": 0.833, "end": 2.367}]}
+{"clip": "adl-01-cam0.mp4", "duration": 5.033333333333333, "events": []}
+{"clip": "adl-02-cam0.mp4", "duration": 6.033333333333333, "events": []}
+{"clip": "adl-03-cam0.mp4", "duration": 6.033333333333333, "events": []}
+{"clip": "adl-04-cam0.mp4", "duration": 5.033333333333333, "events": []}
+{"clip": "adl-05-cam0.mp4", "duration": 6.033333333333333, "events": []}
+{"clip": "adl-06-cam0.mp4", "duration": 7.7, "events": []}
+{"clip": "adl-07-cam0.mp4", "duration": 6.033333333333333, "events": []}
+{"clip": "adl-08-cam0.mp4", "duration": 6.033333333333333, "events": []}
+{"clip": "adl-09-cam0.mp4", "duration": 5.033333333333333, "events": []}
+{"clip": "adl-10-cam0.mp4", "duration": 10.033333333333333, "events": []}
+{"clip": "adl-11-cam0.mp4", "duration": 10.033333333333333, "events": []}
+{"clip": "adl-12-cam0.mp4", "duration": 8.366666666666667, "events": []}
+{"clip": "adl-13-cam0.mp4", "duration": 8.866666666666667, "events": []}
+{"clip": "adl-14-cam0.mp4", "duration": 7.866666666666666, "events": []}
+{"clip": "adl-15-cam0.mp4", "duration": 9.2, "events": []}
+{"clip": "adl-16-cam0.mp4", "duration": 8.033333333333333, "events": []}
+{"clip": "adl-17-cam0.mp4", "duration": 6.133333333333334, "events": []}
+{"clip": "adl-18-cam0.mp4", "duration": 8.866666666666667, "events": []}
+{"clip": "adl-19-cam0.mp4", "duration": 8.366666666666667, "events": []}
+{"clip": "adl-20-cam0.mp4", "duration": 9.033333333333333, "events": []}
+{"clip": "adl-21-cam0.mp4", "duration": 9.366666666666667, "events": []}
+{"clip": "adl-22-cam0.mp4", "duration": 8.033333333333333, "events": []}
+{"clip": "adl-23-cam0.mp4", "duration": 7.366666666666666, "events": []}
+{"clip": "adl-24-cam0.mp4", "duration": 2.3666666666666667, "events": []}
+{"clip": "adl-25-cam0.mp4", "duration": 3.7, "events": []}
+{"clip": "adl-26-cam0.mp4", "duration": 3.2, "events": []}
+{"clip": "adl-27-cam0.mp4", "duration": 3.3666666666666667, "events": []}
+{"clip": "adl-28-cam0.mp4", "duration": 2.8666666666666667, "events": []}
+{"clip": "adl-29-cam0.mp4", "duration": 4.2, "events": []}
+{"clip": "adl-30-cam0.mp4", "duration": 13.366666666666667, "events": []}
+{"clip": "adl-31-cam0.mp4", "duration": 8.366666666666667, "events": []}
+{"clip": "adl-32-cam0.mp4", "duration": 6.7, "events": []}
+{"clip": "adl-33-cam0.mp4", "duration": 6.7, "events": []}
+{"clip": "adl-34-cam0.mp4", "duration": 6.4, "events": []}
+{"clip": "adl-35-cam0.mp4", "duration": 9.366666666666667, "events": []}
+{"clip": "adl-36-cam0.mp4", "duration": 11.366666666666667, "events": []}
+{"clip": "adl-37-cam0.mp4", "duration": 11.7, "events": []}
+{"clip": "adl-38-cam0.mp4", "duration": 11.533333333333333, "events": []}
+{"clip": "adl-39-cam0.mp4", "duration": 9.033333333333333, "events": []}
+{"clip": "adl-40-cam0.mp4", "duration": 11.033333333333333, "events": []}

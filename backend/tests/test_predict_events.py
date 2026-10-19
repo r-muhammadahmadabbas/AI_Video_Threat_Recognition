@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import cv2
@@ -10,6 +11,7 @@ import pytest
 
 from scripts.eval.metrics import EventInterval
 from scripts.eval.predict_events import (
+    clip_id_for,
     events_to_intervals,
     predict_clip_from_capture,
     video_files,
@@ -130,6 +132,19 @@ class TestPredictClip:
 
         assert pipeline.timestamps == pytest.approx([0.0])
         assert clip.duration == pytest.approx(1.0 / 25.0)
+
+
+class TestClipIds:
+    def test_relative_ids_disambiguate_nested_layouts(self, tmp_path):
+        nested = tmp_path / "val" / "Fight" / "a.avi"
+
+        assert clip_id_for(nested, tmp_path) == "val/Fight/a.avi"
+
+    def test_plain_name_without_base(self):
+        assert clip_id_for(Path("clip.mp4")) == "clip.mp4"
+
+    def test_paths_outside_base_fall_back_to_name(self, tmp_path):
+        assert clip_id_for(Path("other/clip.mp4"), tmp_path) == "clip.mp4"
 
 
 class TestVideoFiles:

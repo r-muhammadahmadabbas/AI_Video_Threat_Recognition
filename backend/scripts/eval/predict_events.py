@@ -69,6 +69,20 @@ def video_files(directory: Path) -> list[Path]:
     )
 
 
+def clip_id_for(path: Path, base: Path | None = None) -> str:
+    """Clip id ground-truth adapters use: path relative to the videos root.
+
+    Folder trees like RWF-2000 repeat file names across ``Fight``/``NonFight``,
+    so the plain file name is not unique; the relative posix path is.
+    """
+    if base is not None:
+        try:
+            return path.relative_to(base).as_posix()
+        except ValueError:
+            return path.name
+    return path.name
+
+
 def events_to_intervals(
     events: list[EventLike],
     *,
@@ -133,15 +147,25 @@ def predict_clip_from_capture(
 
 
 def predict_clip(
-    path: Path, pipeline: PipelineLike, target_fps: float = 1.0
+    path: Path,
+    pipeline: PipelineLike,
+    target_fps: float = 1.0,
+    *,
+    base: Path | None = None,
 ) -> ClipEvents:
-    """Open one video file and return its predicted event intervals."""
+    """Open one video file and return its predicted event intervals.
+
+    Pass ``base`` (the ``--videos`` root) so nested layouts produce the same
+    relative clip ids the ground-truth adapters use.
+    """
     capture = cv2.VideoCapture(str(path))
     if not capture.isOpened():
         capture.release()
         raise ValueError(f"could not open video: {path}")
     try:
-        return predict_clip_from_capture(capture, path.name, pipeline, target_fps)
+        return predict_clip_from_capture(
+            capture, clip_id_for(path, base), pipeline, target_fps
+        )
     finally:
         capture.release()
 
@@ -168,7 +192,7 @@ def main() -> None:
 
     clips: dict[str, ClipEvents] = {}
     for path in video_files(args.videos):
-        clip = predict_clip(path, pipeline, args.target_fps)
+        clip = predict_clip(path, pipeline, args.target_fps, base=args.videos)
         clips[clip.clip] = clip
         duration = clip.duration or 0.0
         print(f"{clip.clip}: duration={duration:.1f}s events={len(clip.events)}")

@@ -116,14 +116,8 @@ def yolo_gt(
     return gt
 
 
-def urfd_gt(csv_path: Path, fps: float = 30.0) -> dict[str, ClipEvents]:
-    """Read the URFD fall-feature CSV into per-clip fall intervals.
-
-    Rows are ``sequence, frame, label, ...`` where label ``-1`` means "not
-    lying", ``0`` "falling" and ``1`` "lying on the ground". Each run of
-    non-``-1`` rows becomes one ``person_down`` interval; clip ids match the
-    published ``<sequence>-cam0.mp4`` file names.
-    """
+def _read_urfd_csv(csv_path: Path) -> dict[str, list[tuple[int, int]]]:
+    """Parse an URFD feature CSV into ``frame, label`` samples per sequence."""
     samples_by_sequence: dict[str, list[tuple[int, int]]] = {}
     for line in csv_path.read_text(encoding="utf-8").splitlines()[1:]:
         parts = line.split(",")
@@ -135,35 +129,70 @@ def urfd_gt(csv_path: Path, fps: float = 30.0) -> dict[str, ClipEvents]:
         except ValueError:
             continue
         samples_by_sequence.setdefault(parts[0].strip(), []).append((frame, label))
+    return samples_by_sequence
 
+
+def _urfd_clip(
+    sequence: str,
+    samples: list[tuple[int, int]],
+    fps: float,
+    *,
+    events_from_labels: bool,
+) -> ClipEvents:
+    samples.sort()
+    events: list[EventInterval] = []
+    start: int | None = None
+    last = 0
+    for frame, label in samples:
+        last = frame
+        if not events_from_labels:
+            continue
+        if label == -1:
+            if start is not None:
+                events.append(
+                    EventInterval("person_down", start / fps, (frame) / fps)
+                )
+                start = None
+            continue
+        if start is None:
+            start = frame
+    if events_from_labels and start is not None:
+        events.append(EventInterval("person_down", start / fps, (last + 1) / fps))
+
+    clip_name = f"{sequence}-cam0.mp4"
+    return ClipEvents(
+        clip=clip_name,
+        duration=(last + 1) / fps,
+        events=events,
+    )
+
+
+def urfd_gt(
+    csv_path: Path,
+    fps: float = 30.0,
+    *,
+    negative_csv: Path | None = None,
+) -> dict[str, ClipEvents]:
+    """Read URFD fall-feature CSVs into per-clip fall intervals.
+
+    Rows are ``sequence, frame, label, ...`` where label ``-1`` means "not
+    lying", ``0`` "falling" and ``1`` "lying on the ground". Each run of
+    non-``-1`` rows becomes one ``person_down`` interval; clip ids match the
+    published ``<sequence>-cam0.mp4`` file names.
+
+    Sequences in ``negative_csv`` are added with no events. Pass the ADL CSV
+    here: some ADLs involve lying down voluntarily, but they are not falls, so
+    they belong to the benchmark as false-alarm material.
+    """
     clips: dict[str, ClipEvents] = {}
-    for sequence, samples in samples_by_sequence.items():
-        samples.sort()
-        events: list[EventInterval] = []
-        start: int | None = None
-        last = 0
-        for frame, label in samples:
-            if label == -1:
-                if start is not None:
-                    events.append(
-                        EventInterval("person_down", start / fps, (last + 1) / fps)
-                    )
-                    start = None
-                continue
-            if start is None:
-                start = frame
-            last = frame
-        if start is not None:
-            events.append(
-                EventInterval("person_down", start / fps, (last + 1) / fps)
-            )
+    for sequence, samples in _read_urfd_csv(csv_path).items():
+        clip = _urfd_clip(sequence, samples, fps, events_from_labels=True)
+        clips[clip.clip] = clip
 
-        clip_name = f"{sequence}-cam0.mp4"
-        clips[clip_name] = ClipEvents(
-            clip=clip_name,
-            duration=(samples[-1][0] + 1) / fps,
-            events=events,
-        )
+    if negative_csv is not None:
+        for sequence, samples in _read_urfd_csv(negative_csv).items():
+            clip = _urfd_clip(sequence, samples, fps, events_from_labels=False)
+            clips.setdefault(clip.clip, clip)
     return clips
 
 
@@ -171,8 +200,10 @@ def rwf_clip_labels(videos_root: Path) -> dict[str, set[str]]:
     """Clip-level fight labels from an RWF-2000 style folder tree.
 
     Every video inside a ``Fight`` folder is labelled ``violence``; videos in
-    ``NonFight`` folders get an empty label set. Clip ids are file names,
-    matching the clip ids ``predict_events`` writes.
+    ``NonFight`` folders get an empty label set. Clip ids are paths relative
+    to ``videos_root`` (posix style) so duplicated file names across folders
+    stay distinct, matching the clip ids ``predict_events`` writes when it is
+    pointed at the same root.
     """
     positive_dirs = {"fight", "fights", "violence"}
     negative_dirs = {"nonfight", "non-fight", "non_fight", "normal"}
@@ -183,9 +214,9 @@ def rwf_clip_labels(videos_root: Path) -> dict[str, set[str]]:
             continue
         folder = path.parent.name.lower()
         if folder in positive_dirs:
-            labels[path.name] = {"violence"}
+            labels[path.relative_to(videos_root).as_posix()] = {"violence"}
         elif folder in negative_dirs:
-            labels[path.name] = set()
+            labels[path.relative_to(videos_root).as_posix()] = set()
     return labels
 
 
