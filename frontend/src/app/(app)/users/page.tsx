@@ -66,6 +66,8 @@ export default function UsersPage() {
   const [editing, setEditing] = useState<User | null>(null);
   const [form, setForm] = useState<UserForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const openCreate = () => {
     setEditing(null);
@@ -111,18 +113,26 @@ export default function UsersPage() {
     }
   };
 
-  const handleDelete = async (target: User) => {
+  const requestDelete = (target: User) => {
     if (target.id === currentUser?.id) {
       toast.error("You cannot delete your own account");
       return;
     }
-    if (!window.confirm(`Delete user "${target.email}"?`)) return;
+    setConfirmingDelete(target);
+  };
+
+  const handleDelete = async () => {
+    if (!confirmingDelete) return;
+    setDeleting(true);
     try {
-      await api.deleteUser(target.id);
+      await api.deleteUser(confirmingDelete.id);
       toast.success("User deleted");
+      setConfirmingDelete(null);
       refetch();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not delete user"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -130,14 +140,14 @@ export default function UsersPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Users</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Users</h1>
           <p className="text-sm text-muted-foreground">
             Manage operator and viewer accounts
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add User
+        <Button onClick={openCreate} className="gap-1.5">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add user
         </Button>
       </div>
 
@@ -210,18 +220,18 @@ export default function UsersPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => openEdit(target)}
-                        title="Edit"
+                        aria-label={`Edit user ${target.email}`}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(target)}
-                        title="Delete"
-                        className="text-red-500 hover:text-red-600"
+                        onClick={() => requestDelete(target)}
+                        aria-label={`Delete user ${target.email}`}
+                        className="text-muted-foreground hover:text-sev-critical"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -235,7 +245,7 @@ export default function UsersPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit User" : "Add User"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit user" : "Add user"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
@@ -300,6 +310,7 @@ export default function UsersPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="h-4 w-4 accent-primary"
                 checked={form.is_active}
                 onChange={(e) =>
                   setForm({ ...form, is_active: e.target.checked })
@@ -315,12 +326,57 @@ export default function UsersPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={saving} className="gap-1.5">
+                {saving && (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                )}
                 Save
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmingDelete !== null}
+        onOpenChange={(openState) => {
+          if (!openState) setConfirmingDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete user</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {confirmingDelete?.email}
+            </span>
+            ? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmingDelete(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="gap-1.5"
+            >
+              {deleting && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

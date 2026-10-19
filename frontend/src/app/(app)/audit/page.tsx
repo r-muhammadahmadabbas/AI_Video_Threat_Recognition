@@ -111,7 +111,7 @@ export default function AuditPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold">Audit Log</h1>
+        <h1 className="text-xl font-semibold tracking-tight">Audit log</h1>
         <p className="text-sm text-muted-foreground">
           Track user activity across the system
         </p>
@@ -137,11 +137,7 @@ export default function AuditPage() {
                 <SelectContent>
                   <SelectItem value="all">All actions</SelectItem>
                   {ACTIONS.map((action) => (
-                    <SelectItem
-                      key={action}
-                      value={action}
-                      className="capitalize"
-                    >
+                    <SelectItem key={action} value={action}>
                       {action.replace(/_/g, " ")}
                     </SelectItem>
                   ))}
@@ -175,8 +171,8 @@ export default function AuditPage() {
                 onChange={(e) => setPendingTo(e.target.value)}
               />
             </div>
-            <Button type="submit" disabled={loading}>
-              <Search className="h-4 w-4" />
+            <Button type="submit" disabled={loading} className="gap-1.5">
+              <Search className="h-4 w-4" aria-hidden="true" />
               Apply
             </Button>
             <Button type="button" variant="ghost" onClick={clearFilters}>

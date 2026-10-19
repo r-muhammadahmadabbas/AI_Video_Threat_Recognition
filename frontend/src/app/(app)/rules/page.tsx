@@ -8,6 +8,7 @@ import { Camera, Paginated, ThreatRule, Zone } from "@/types";
 import { useFetch } from "@/hooks/use-fetch";
 import { SeverityBadge } from "@/components/status-badges";
 import { EmptyState, ErrorState } from "@/components/empty-state";
+import { eventInfo, ruleLabel } from "@/lib/labels";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -69,6 +70,11 @@ const emptyForm: RuleForm = {
   is_active: true,
 };
 
+function RuleGlyph({ rule, className }: { rule: string; className?: string }) {
+  const Icon = eventInfo(rule).icon;
+  return <Icon className={className} aria-hidden="true" />;
+}
+
 export default function RulesPage() {
   const { data, loading, error, refetch } = useFetch<Paginated<ThreatRule>>(
     () => api.getRules({ page: 1, page_size: 50 }),
@@ -89,6 +95,10 @@ export default function RulesPage() {
   const [configText, setConfigText] = useState("{}");
   const [configError, setConfigError] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<ThreatRule | null>(
+    null,
+  );
+  const [deleting, setDeleting] = useState(false);
 
   const cameraName = (cameraId: number) =>
     camerasData?.items.find((camera) => camera.id === cameraId)?.name ??
@@ -160,14 +170,18 @@ export default function RulesPage() {
     }
   };
 
-  const handleDelete = async (rule: ThreatRule) => {
-    if (!window.confirm(`Delete rule "${rule.name}"?`)) return;
+  const handleDelete = async () => {
+    if (!confirmingDelete) return;
+    setDeleting(true);
     try {
-      await api.deleteRule(rule.id);
+      await api.deleteRule(confirmingDelete.id);
       toast.success("Rule deleted");
+      setConfirmingDelete(null);
       refetch();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not delete rule"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -175,14 +189,14 @@ export default function RulesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Threat Rules</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Threat rules</h1>
           <p className="text-sm text-muted-foreground">
             Configure detection rules for each camera
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add Rule
+        <Button onClick={openCreate} className="gap-1.5">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add rule
         </Button>
       </div>
 
@@ -225,9 +239,13 @@ export default function RulesPage() {
                     <TableCell>{cameraName(rule.camera_id)}</TableCell>
                     <TableCell>{zoneName(rule.zone_id)}</TableCell>
                     <TableCell>
-                      <Badge variant="secondary" className="capitalize">
-                        {rule.rule_type.replace(/_/g, " ")}
-                      </Badge>
+                      <span className="inline-flex items-center gap-2 text-sm">
+                        <RuleGlyph
+                          rule={rule.rule_type}
+                          className="h-4 w-4 shrink-0 text-muted-foreground"
+                        />
+                        {ruleLabel(rule.rule_type)}
+                      </span>
                     </TableCell>
                     <TableCell>
                       <SeverityBadge severity={rule.severity} />
@@ -243,18 +261,18 @@ export default function RulesPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => openEdit(rule)}
-                        title="Edit"
+                        aria-label={`Edit rule ${rule.name}`}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(rule)}
-                        title="Delete"
-                        className="text-red-500 hover:text-red-600"
+                        onClick={() => setConfirmingDelete(rule)}
+                        aria-label={`Delete rule ${rule.name}`}
+                        className="text-muted-foreground hover:text-sev-critical"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -340,12 +358,8 @@ export default function RulesPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {RULE_TYPES.map((type) => (
-                      <SelectItem
-                        key={type}
-                        value={type}
-                        className="capitalize"
-                      >
-                        {type.replace(/_/g, " ")}
+                      <SelectItem key={type} value={type}>
+                        {ruleLabel(type)}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -396,17 +410,18 @@ export default function RulesPage() {
                 value={configText}
                 onChange={(e) => handleConfigChange(e.target.value)}
                 spellCheck={false}
-                className={`min-h-[90px] w-full rounded-md border bg-background px-3 py-2 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-ring ${
-                  configError ? "border-red-500" : "border-input"
+                className={`min-h-[90px] w-full rounded-md border bg-surface-2 px-3 py-2 font-mono text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                  configError ? "border-sev-critical" : "border-border-strong"
                 }`}
               />
               {configError && (
-                <p className="text-xs text-red-500">Invalid JSON</p>
+                <p className="text-xs text-sev-critical">Invalid JSON</p>
               )}
             </div>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="h-4 w-4 accent-primary"
                 checked={form.is_active}
                 onChange={(e) =>
                   setForm({ ...form, is_active: e.target.checked })
@@ -422,12 +437,57 @@ export default function RulesPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={saving} className="gap-1.5">
+                {saving && (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                )}
                 Save
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmingDelete !== null}
+        onOpenChange={(openState) => {
+          if (!openState) setConfirmingDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete rule</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {confirmingDelete?.name}
+            </span>
+            ? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmingDelete(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="gap-1.5"
+            >
+              {deleting && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

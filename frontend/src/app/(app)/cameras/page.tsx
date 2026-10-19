@@ -76,6 +76,8 @@ export default function CamerasPage() {
   const [editing, setEditing] = useState<Camera | null>(null);
   const [form, setForm] = useState<CameraForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<Camera | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const openCreate = () => {
     setEditing(null);
@@ -119,14 +121,18 @@ export default function CamerasPage() {
     }
   };
 
-  const handleDelete = async (camera: Camera) => {
-    if (!window.confirm(`Delete camera "${camera.name}"?`)) return;
+  const handleDelete = async () => {
+    if (!confirmingDelete) return;
+    setDeleting(true);
     try {
-      await api.deleteCamera(camera.id);
+      await api.deleteCamera(confirmingDelete.id);
       toast.success("Camera deleted");
+      setConfirmingDelete(null);
       refetch();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not delete camera"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -134,14 +140,14 @@ export default function CamerasPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Cameras</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Cameras</h1>
           <p className="text-sm text-muted-foreground">
             Manage video sources and inference settings
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add Camera
+        <Button onClick={openCreate} className="gap-1.5">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add camera
         </Button>
       </div>
 
@@ -190,14 +196,20 @@ export default function CamerasPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="max-w-[220px] truncate font-mono text-xs text-muted-foreground">
-                        {camera.source_url}
+                        {camera.source_url || "—"}
                       </TableCell>
                       <TableCell>
-                        <span className="inline-flex items-center gap-2 text-sm">
+                        <span className="inline-flex items-center gap-2 text-sm capitalize">
                           {online ? (
-                            <Wifi className="h-4 w-4 text-green-500" />
+                            <Wifi
+                              className="h-4 w-4 text-ok"
+                              aria-hidden="true"
+                            />
                           ) : (
-                            <WifiOff className="h-4 w-4 text-red-500" />
+                            <WifiOff
+                              className="h-4 w-4 text-muted-foreground"
+                              aria-hidden="true"
+                            />
                           )}
                           {camera.status || "unknown"}
                         </span>
@@ -217,18 +229,18 @@ export default function CamerasPage() {
                           variant="ghost"
                           size="icon"
                           onClick={() => openEdit(camera)}
-                          title="Edit"
+                          aria-label={`Edit camera ${camera.name}`}
                         >
-                          <Edit className="h-4 w-4" />
+                          <Edit className="h-4 w-4" aria-hidden="true" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="icon"
-                          onClick={() => handleDelete(camera)}
-                          title="Delete"
-                          className="text-red-500 hover:text-red-600"
+                          onClick={() => setConfirmingDelete(camera)}
+                          aria-label={`Delete camera ${camera.name}`}
+                          className="text-muted-foreground hover:text-sev-critical"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -243,7 +255,7 @@ export default function CamerasPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Camera" : "Add Camera"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit camera" : "Add camera"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
@@ -346,12 +358,58 @@ export default function CamerasPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
-                {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+              <Button type="submit" disabled={saving} className="gap-1.5">
+                {saving && (
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
+                )}
                 Save
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmingDelete !== null}
+        onOpenChange={(openState) => {
+          if (!openState) setConfirmingDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete camera</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {confirmingDelete?.name}
+            </span>
+            ? Zones and rules referencing this camera will be affected. This
+            cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmingDelete(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="gap-1.5"
+            >
+              {deleting && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

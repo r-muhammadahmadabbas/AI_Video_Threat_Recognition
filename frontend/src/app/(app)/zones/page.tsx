@@ -59,12 +59,12 @@ function drawCanvas(
   if (image) {
     context.drawImage(image, 0, 0, canvas.width, canvas.height);
   } else {
-    context.fillStyle = "#0f172a";
+    context.fillStyle = "oklch(0.185 0.014 260)";
     context.fillRect(0, 0, canvas.width, canvas.height);
   }
 
   if (points.length === 0) return;
-  context.strokeStyle = "#22c55e";
+  context.strokeStyle = "oklch(0.78 0.16 150)";
   context.lineWidth = 2;
   context.beginPath();
   points.forEach((point, index) => {
@@ -73,17 +73,18 @@ function drawCanvas(
   });
   if (points.length > 2) {
     context.closePath();
-    context.fillStyle = "rgba(34, 197, 94, 0.15)";
+    context.fillStyle = "oklch(0.78 0.16 150 / 0.18)";
     context.fill();
   }
   context.stroke();
 
   points.forEach((point, index) => {
-    context.fillStyle = index === 0 ? "#16a34a" : "#22c55e";
+    context.fillStyle =
+      index === 0 ? "oklch(0.88 0.16 150)" : "oklch(0.78 0.16 150)";
     context.beginPath();
     context.arc(point.x, point.y, 5, 0, Math.PI * 2);
     context.fill();
-    context.strokeStyle = "white";
+    context.strokeStyle = "oklch(0.145 0.012 260)";
     context.lineWidth = 2;
     context.stroke();
   });
@@ -194,7 +195,7 @@ function PolygonEditor({
           }}
           disabled={historyIndex <= 0}
         >
-          <Undo2 className="h-4 w-4" />
+          <Undo2 className="h-4 w-4" aria-hidden="true" />
           Undo
         </Button>
         <Button
@@ -208,7 +209,7 @@ function PolygonEditor({
           }}
           disabled={points.length === 0}
         >
-          <X className="h-4 w-4" />
+          <X className="h-4 w-4" aria-hidden="true" />
           Remove last
         </Button>
         <Button
@@ -223,7 +224,7 @@ function PolygonEditor({
           }}
           disabled={points.length < 3}
         >
-          <RotateCcw className="h-4 w-4" />
+          <RotateCcw className="h-4 w-4" aria-hidden="true" />
           Close polygon
         </Button>
         <Button
@@ -275,6 +276,8 @@ export default function ZonesPage() {
   const [editing, setEditing] = useState<Zone | null>(null);
   const [form, setForm] = useState<ZoneForm>(emptyForm);
   const [saving, setSaving] = useState(false);
+  const [confirmingDelete, setConfirmingDelete] = useState<Zone | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const cameraName = (cameraId: number) =>
     camerasData?.items.find((camera) => camera.id === cameraId)?.name ??
@@ -329,14 +332,18 @@ export default function ZonesPage() {
     }
   };
 
-  const handleDelete = async (zone: Zone) => {
-    if (!window.confirm(`Delete zone "${zone.name}"?`)) return;
+  const handleDelete = async () => {
+    if (!confirmingDelete) return;
+    setDeleting(true);
     try {
-      await api.deleteZone(zone.id);
+      await api.deleteZone(confirmingDelete.id);
       toast.success("Zone deleted");
+      setConfirmingDelete(null);
       refetch();
     } catch (err) {
       toast.error(apiErrorMessage(err, "Could not delete zone"));
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -344,14 +351,14 @@ export default function ZonesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Zones</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Zones</h1>
           <p className="text-sm text-muted-foreground">
             Define detection zones on camera feeds
           </p>
         </div>
-        <Button onClick={openCreate}>
-          <Plus className="h-4 w-4" />
-          Add Zone
+        <Button onClick={openCreate} className="gap-1.5">
+          <Plus className="h-4 w-4" aria-hidden="true" />
+          Add zone
         </Button>
       </div>
 
@@ -408,18 +415,18 @@ export default function ZonesPage() {
                         variant="ghost"
                         size="icon"
                         onClick={() => openEdit(zone)}
-                        title="Edit"
+                        aria-label={`Edit zone ${zone.name}`}
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-4 w-4" aria-hidden="true" />
                       </Button>
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(zone)}
-                        title="Delete"
-                        className="text-red-500 hover:text-red-600"
+                        onClick={() => setConfirmingDelete(zone)}
+                        aria-label={`Delete zone ${zone.name}`}
+                        className="text-muted-foreground hover:text-sev-critical"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-4 w-4" aria-hidden="true" />
                       </Button>
                     </TableCell>
                   </TableRow>
@@ -433,7 +440,7 @@ export default function ZonesPage() {
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>{editing ? "Edit Zone" : "Add Zone"}</DialogTitle>
+            <DialogTitle>{editing ? "Edit zone" : "Add zone"}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -517,6 +524,7 @@ export default function ZonesPage() {
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
+                className="h-4 w-4 accent-primary"
                 checked={form.is_active}
                 onChange={(e) =>
                   setForm({ ...form, is_active: e.target.checked })
@@ -533,16 +541,59 @@ export default function ZonesPage() {
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={saving}>
+              <Button type="submit" disabled={saving} className="gap-1.5">
                 {saving ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <Check className="h-4 w-4" />
+                  <Check className="h-4 w-4" aria-hidden="true" />
                 )}
                 Save
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={confirmingDelete !== null}
+        onOpenChange={(openState) => {
+          if (!openState) setConfirmingDelete(null);
+        }}
+      >
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete zone</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Delete{" "}
+            <span className="font-medium text-foreground">
+              {confirmingDelete?.name}
+            </span>
+            ? This cannot be undone.
+          </p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setConfirmingDelete(null)}
+              disabled={deleting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="gap-1.5"
+            >
+              {deleting && (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              )}
+              Delete
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
