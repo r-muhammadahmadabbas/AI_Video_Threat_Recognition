@@ -63,6 +63,10 @@ class PersonDownRule(BehaviorRule):
 
             episode = self._episodes.setdefault(tracker_id, _DownEpisode())
 
+            if not observation.inside_expanded:
+                episode.consecutive_down_frames = 0
+                continue
+
             bbox = observation.track.bbox
             x1, y1, x2, y2 = bbox
             width = max(0.0, x2 - x1)

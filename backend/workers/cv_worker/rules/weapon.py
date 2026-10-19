@@ -1,9 +1,14 @@
 """Weapon detection (Sprint 8A).
 
 A :class:`WeaponRule` fires when a tracked subject carries a weapon and stays
-inside a designated zone for at least the configured dwell time.  The rule
-mirrors the loitering pattern: residency is accumulated from the frame cadence
-``dt`` so that offline replay is reproducible, a brief exit within
+inside a designated zone for at least the configured dwell time.  A track only
+counts while ``track.weapon_detected`` is set by the enrichment stage, so a
+person standing in the zone without an associated weapon never alerts; losing
+the weapon is treated exactly like leaving the zone, including the optional
+grace window for brief detection dropouts.
+
+The rule mirrors the loitering pattern: residency is accumulated from the frame
+cadence ``dt`` so that offline replay is reproducible, a brief exit within
 ``grace_seconds`` merely pauses the clock, and ``cooldown_seconds`` caps how
 often the same track can alert.
 
@@ -74,7 +79,7 @@ class WeaponRule(BehaviorRule):
 
             episode = self._episodes.setdefault(tracker_id, _Episode())
 
-            if observation.inside_expanded:
+            if observation.inside_expanded and observation.track.weapon_detected:
                 self._advance_inside(episode, dt)
             else:
                 self._advance_outside(episode, dt)
@@ -146,6 +151,7 @@ class WeaponRule(BehaviorRule):
                 "residence_seconds": round(episode.dwell_seconds, 3),
                 "dwell_threshold_seconds": self.config.dwell_seconds,
                 "grace_seconds": self.config.grace_seconds,
+                "weapon_confidence": round(track.weapon_confidence, 3),
                 "bbox": list(track.bbox),
             },
         )

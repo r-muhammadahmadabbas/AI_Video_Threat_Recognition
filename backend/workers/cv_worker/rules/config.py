@@ -123,7 +123,7 @@ class PersonDownConfig(BaseModel):
 
     A person is considered "down" when their bounding box is wider than it is
     tall by a configurable margin. This is evaluated per-frame on the track's
-    current bbox.
+    current bbox and only for tracks that are inside the bound zone.
 
     Attributes:
         aspect_ratio_threshold: width / height ratio above which the track is
@@ -133,6 +133,8 @@ class PersonDownConfig(BaseModel):
         min_frames_down: consecutive frames the ratio must exceed the threshold
             before triggering. Filters single-frame pose jitter.
         point: which point of the bbox to use for zone containment (if zone-bound).
+        entry_margin/exit_margin: hysteresis multipliers used to derive this
+            rule's containment rings, as for every zone-bound rule.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -142,6 +144,13 @@ class PersonDownConfig(BaseModel):
     cooldown_seconds: float = Field(default=60.0, ge=0.0)
     min_frames_down: int = Field(default=3, ge=1)
     point: Literal["bottom_center", "center"] = "bottom_center"
+    entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
+    exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
+
+    @model_validator(mode="after")
+    def _exit_must_be_tighter_than_entry(self) -> PersonDownConfig:
+        _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
 
 
 class WeaponConfig(BaseModel):
@@ -153,6 +162,8 @@ class WeaponConfig(BaseModel):
         min_confidence: minimum detection confidence to consider.
         cooldown_seconds: minimum gap between two incidents for the same track.
         point: which point of the bbox to use for zone containment (if zone-bound).
+        entry_margin/exit_margin: hysteresis multipliers used to derive this
+            rule's containment rings, as for every zone-bound rule.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -162,6 +173,13 @@ class WeaponConfig(BaseModel):
     min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
     cooldown_seconds: float = Field(default=300.0, ge=0.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
+    entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
+    exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
+
+    @model_validator(mode="after")
+    def _exit_must_be_tighter_than_entry(self) -> WeaponConfig:
+        _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
 
 
 class AltercationConfig(BaseModel):
