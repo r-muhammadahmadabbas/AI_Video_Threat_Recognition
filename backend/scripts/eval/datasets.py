@@ -5,6 +5,8 @@ Supported layouts:
 * COCO detection annotations (JSON) - used for the person subset.
 * YOLO detection folders (``images/`` + ``labels/`` + ``classes.txt``) - used
   for weapon datasets such as Weapons-130K.
+* URFD fall-feature CSV plus ``*-cam0.mp4`` clips - fall event intervals.
+* RWF-2000 style ``Fight``/``NonFight`` folder trees - clip-level labels.
 """
 
 from __future__ import annotations
@@ -14,12 +16,14 @@ from typing import TYPE_CHECKING
 
 from PIL import Image
 
-from scripts.eval.metrics import BoxLabel
+from scripts.eval.metrics import BoxLabel, EventInterval
+from scripts.eval.schema import ClipEvents
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
+VIDEO_SUFFIXES = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 
 
 def coco_gt(
@@ -110,6 +114,79 @@ def yolo_gt(
                 )
         gt[image_path.name] = labels
     return gt
+
+
+def urfd_gt(csv_path: Path, fps: float = 30.0) -> dict[str, ClipEvents]:
+    """Read the URFD fall-feature CSV into per-clip fall intervals.
+
+    Rows are ``sequence, frame, label, ...`` where label ``-1`` means "not
+    lying", ``0`` "falling" and ``1`` "lying on the ground". Each run of
+    non-``-1`` rows becomes one ``person_down`` interval; clip ids match the
+    published ``<sequence>-cam0.mp4`` file names.
+    """
+    samples_by_sequence: dict[str, list[tuple[int, int]]] = {}
+    for line in csv_path.read_text(encoding="utf-8").splitlines()[1:]:
+        parts = line.split(",")
+        if len(parts) < 3:
+            continue
+        try:
+            frame = int(float(parts[1]))
+            label = int(float(parts[2]))
+        except ValueError:
+            continue
+        samples_by_sequence.setdefault(parts[0].strip(), []).append((frame, label))
+
+    clips: dict[str, ClipEvents] = {}
+    for sequence, samples in samples_by_sequence.items():
+        samples.sort()
+        events: list[EventInterval] = []
+        start: int | None = None
+        last = 0
+        for frame, label in samples:
+            if label == -1:
+                if start is not None:
+                    events.append(
+                        EventInterval("person_down", start / fps, (last + 1) / fps)
+                    )
+                    start = None
+                continue
+            if start is None:
+                start = frame
+            last = frame
+        if start is not None:
+            events.append(
+                EventInterval("person_down", start / fps, (last + 1) / fps)
+            )
+
+        clip_name = f"{sequence}-cam0.mp4"
+        clips[clip_name] = ClipEvents(
+            clip=clip_name,
+            duration=(samples[-1][0] + 1) / fps,
+            events=events,
+        )
+    return clips
+
+
+def rwf_clip_labels(videos_root: Path) -> dict[str, set[str]]:
+    """Clip-level fight labels from an RWF-2000 style folder tree.
+
+    Every video inside a ``Fight`` folder is labelled ``violence``; videos in
+    ``NonFight`` folders get an empty label set. Clip ids are file names,
+    matching the clip ids ``predict_events`` writes.
+    """
+    positive_dirs = {"fight", "fights", "violence"}
+    negative_dirs = {"nonfight", "non-fight", "non_fight", "normal"}
+
+    labels: dict[str, set[str]] = {}
+    for path in sorted(videos_root.rglob("*")):
+        if not path.is_file() or path.suffix.lower() not in VIDEO_SUFFIXES:
+            continue
+        folder = path.parent.name.lower()
+        if folder in positive_dirs:
+            labels[path.name] = {"violence"}
+        elif folder in negative_dirs:
+            labels[path.name] = set()
+    return labels
 
 
 def resolve_image_paths(

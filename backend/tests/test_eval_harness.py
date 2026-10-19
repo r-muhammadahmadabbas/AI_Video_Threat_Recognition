@@ -5,13 +5,20 @@ from types import SimpleNamespace
 import pytest
 from PIL import Image
 
-from scripts.eval.datasets import coco_gt, resolve_image_paths, yolo_gt
+from scripts.eval.datasets import (
+    coco_gt,
+    resolve_image_paths,
+    rwf_clip_labels,
+    urfd_gt,
+    yolo_gt,
+)
 from scripts.eval.metrics import (
     BoxLabel,
     BoxPrediction,
     EventInterval,
     aggregate_event_results,
     average_precision,
+    evaluate_clip_labels,
     evaluate_detections,
     evaluate_events,
     iou,
@@ -21,7 +28,9 @@ from scripts.eval.predict import predict_images
 from scripts.eval.schema import (
     load_box_gt,
     load_box_predictions,
+    load_clip_labels,
     load_event_gt,
+    save_clip_labels,
     save_predictions,
 )
 
@@ -154,6 +163,37 @@ class TestEventEvaluation:
         assert result.overall.recall == 0.5
 
 
+class TestClipMetrics:
+    def test_confusion_counts_and_scores(self):
+        gt = {
+            "a.mp4": {"violence"},
+            "b.mp4": set(),
+            "c.mp4": {"violence"},
+            "d.mp4": set(),
+        }
+        predicted = {
+            "a.mp4": {"violence"},
+            "b.mp4": {"violence"},
+            "c.mp4": set(),
+            "d.mp4": set(),
+        }
+
+        result = evaluate_clip_labels(gt, predicted, "violence")
+
+        assert (result.true_positives, result.false_positives) == (1, 1)
+        assert (result.false_negatives, result.true_negatives) == (1, 1)
+        assert result.precision == 0.5
+        assert result.recall == 0.5
+        assert result.accuracy == 0.5
+
+    def test_clips_missing_from_predictions_are_false_negatives(self):
+        result = evaluate_clip_labels({"a.mp4": {"violence"}}, {}, "violence")
+
+        assert result.false_negatives == 1
+        assert result.recall == 0.0
+        assert result.accuracy == 0.0
+
+
 class TestDatasets:
     def test_coco_boxes_are_converted_to_xyxy(self, tmp_path):
         annotation_path = tmp_path / "instances.json"
@@ -230,6 +270,39 @@ class TestDatasets:
         with pytest.raises(FileNotFoundError, match=r"missing\.jpg"):
             resolve_image_paths(gt, tmp_path)
 
+    def test_urfd_csv_becomes_fall_intervals(self, tmp_path):
+        csv_path = tmp_path / "urfall-cam0-falls.csv"
+        csv_path.write_text(
+            "sequence,frame,label,HeightWidthRatio\n"
+            "fall-01,0,-1,1.0\n"
+            "fall-01,1,0,1.0\n"
+            "fall-01,2,1,1.0\n"
+            "fall-01,3,1,1.0\n"
+            "fall-01,4,-1,1.0\n"
+            "adl-01,0,-1,1.0\n",
+            encoding="utf-8",
+        )
+
+        clips = urfd_gt(csv_path, fps=2.0)
+
+        fall = clips["fall-01-cam0.mp4"]
+        assert fall.events == [EventInterval("person_down", 0.5, 2.0)]
+        assert fall.duration == pytest.approx(2.5)
+        assert clips["adl-01-cam0.mp4"].events == []
+
+    def test_rwf_folder_tree_labels_fight_and_nonfight(self, tmp_path):
+        fight = tmp_path / "val" / "Fight"
+        nonfight = tmp_path / "val" / "NonFight"
+        fight.mkdir(parents=True)
+        nonfight.mkdir(parents=True)
+        (fight / "a.avi").write_bytes(b"x")
+        (nonfight / "b.avi").write_bytes(b"x")
+        (tmp_path / "val" / "notes.txt").write_bytes(b"x")
+
+        labels = rwf_clip_labels(tmp_path)
+
+        assert labels == {"a.avi": {"violence"}, "b.avi": set()}
+
 
 class TestSchema:
     def test_predictions_round_trip(self, tmp_path):
@@ -263,6 +336,14 @@ class TestSchema:
         assert boxes["a.jpg"][0].bbox == (0.0, 1.0, 2.0, 3.0)
         assert clips["a.mp4"].duration == 12.0
         assert clips["a.mp4"].events[0] == EventInterval("fall", 1.0, 2.0)
+
+    def test_clip_labels_round_trip(self, tmp_path):
+        path = tmp_path / "labels.jsonl"
+        labels = {"a.avi": {"violence"}, "b.avi": set()}
+
+        save_clip_labels(path, labels)
+
+        assert load_clip_labels(path) == labels
 
 
 @dataclass

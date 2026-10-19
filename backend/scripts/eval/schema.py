@@ -146,3 +146,22 @@ def save_clip_events(path: Path, clips: dict[str, ClipEvents]) -> None:
         for clip in clips.values()
     ]
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def load_clip_labels(path: Path) -> dict[str, set[str]]:
+    """Load per-clip labels, e.g. RWF-2000 fight/non-fight annotations."""
+    labels: dict[str, set[str]] = {}
+    for record in _read_jsonl(path):
+        clip = record["clip"]
+        labels[clip] = {str(label) for label in record.get("labels", [])}
+    return labels
+
+
+def save_clip_labels(path: Path, labels: dict[str, set[str]]) -> None:
+    """Write per-clip labels as JSON Lines (``load_clip_labels`` reads them)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        json.dumps({"clip": clip, "labels": sorted(clip_labels)})
+        for clip, clip_labels in labels.items()
+    ]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")

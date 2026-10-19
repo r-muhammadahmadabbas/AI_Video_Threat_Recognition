@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING, Protocol
 
 import cv2
 
+from scripts.eval.datasets import VIDEO_SUFFIXES
 from scripts.eval.metrics import EventInterval
 from scripts.eval.schema import ClipEvents, save_clip_events
 
@@ -33,7 +34,6 @@ if TYPE_CHECKING:
 
     from workers.cv_worker.pipeline import RuleEvent
 
-VIDEO_SUFFIXES = {".mp4", ".avi", ".mov", ".mkv", ".webm"}
 DEFAULT_FPS = 25.0
 GAP_TOLERANCE_PERIODS = 2.0
 MIN_DURATION_PERIODS = 1.0

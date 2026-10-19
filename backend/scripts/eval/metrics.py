@@ -273,6 +273,60 @@ def evaluate_events(
     )
 
 
+@dataclass
+class ClipEvalResult:
+    """Clip-level confusion counts for one label plus derived scores."""
+
+    true_positives: int
+    false_positives: int
+    false_negatives: int
+    true_negatives: int
+    precision: float
+    recall: float
+    f1: float
+    accuracy: float
+
+
+def evaluate_clip_labels(
+    gt_labels: dict[str, set[str]],
+    predicted_labels: dict[str, set[str]],
+    label: str,
+) -> ClipEvalResult:
+    """Score whole-clip labels for datasets annotated per clip (RWF-2000).
+
+    A clip is positive when it shows the phenomenon anywhere in the clip, so
+    temporal localization is intentionally out of scope here; use event IoU
+    scoring when the dataset provides intervals (URFD).
+    """
+    clips = sorted(set(gt_labels) | set(predicted_labels))
+    tp = fp = fn = tn = 0
+
+    for clip in clips:
+        gt_positive = label in gt_labels.get(clip, set())
+        predicted_positive = label in predicted_labels.get(clip, set())
+        if gt_positive and predicted_positive:
+            tp += 1
+        elif predicted_positive:
+            fp += 1
+        elif gt_positive:
+            fn += 1
+        else:
+            tn += 1
+
+    scores = _score_counts(tp, fp, fn)
+    total = len(clips)
+    return ClipEvalResult(
+        true_positives=tp,
+        false_positives=fp,
+        false_negatives=fn,
+        true_negatives=tn,
+        precision=scores.precision,
+        recall=scores.recall,
+        f1=scores.f1,
+        accuracy=(tp + tn) / total if total else 0.0,
+    )
+
+
 def aggregate_event_results(
     results: list[EventEvalResult], duration_seconds: float | None = None
 ) -> EventEvalResult:

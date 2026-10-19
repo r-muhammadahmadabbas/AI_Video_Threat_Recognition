@@ -29,12 +29,14 @@ from scripts.eval.metrics import (
     DetectionEvalResult,
     EventEvalResult,
     aggregate_event_results,
+    evaluate_clip_labels,
     evaluate_detections,
     evaluate_events,
 )
 from scripts.eval.predict import predict_images
 from scripts.eval.schema import (
     load_box_gt,
+    load_clip_labels,
     load_event_gt,
     save_predictions,
 )
@@ -197,6 +199,58 @@ def run_events(args: argparse.Namespace) -> None:
     )
 
 
+def run_clips(args: argparse.Namespace) -> None:
+    gt_labels = load_clip_labels(args.gt)
+    predicted_clips = load_event_gt(args.pred)
+    event_types = {
+        name.strip() for name in args.events.split(",") if name.strip()
+    }
+    predicted_labels = {
+        clip_id: (
+            {args.label}
+            if any(event.event_type in event_types for event in clip.events)
+            else set()
+        )
+        for clip_id, clip in predicted_clips.items()
+    }
+
+    result = evaluate_clip_labels(gt_labels, predicted_labels, args.label)
+    total_duration = sum(
+        clip.duration for clip in predicted_clips.values() if clip.duration
+    )
+    false_alarms = (
+        result.false_positives / (total_duration / 60.0)
+        if total_duration
+        else None
+    )
+
+    print(
+        f"  {args.label:<20} P={result.precision:.3f} R={result.recall:.3f} "
+        f"F1={result.f1:.3f} acc={result.accuracy:.3f} "
+        f"(TP={result.true_positives} FP={result.false_positives} "
+        f"FN={result.false_negatives} TN={result.true_negatives})"
+    )
+    if false_alarms is not None:
+        print(f"  false alarms: {false_alarms:.2f}/min")
+
+    _write_report(
+        {
+            "kind": "clips",
+            "config": {
+                "label": args.label,
+                "events": sorted(event_types),
+                "num_clips": len(set(gt_labels) | set(predicted_labels)),
+                "duration_seconds": total_duration or None,
+            },
+            "metrics": {
+                **asdict(result),
+                "false_alarms_per_minute": false_alarms,
+            },
+        },
+        args.out,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -243,6 +297,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--out", type=Path, default=Path("eval_results/events.json")
     )
     events.set_defaults(func=run_events)
+
+    clips = subparsers.add_parser(
+        "clips", help="measure clip-level label P/R/F1 (RWF-2000 style)"
+    )
+    clips.add_argument("--gt", type=Path, required=True)
+    clips.add_argument("--pred", type=Path, required=True)
+    clips.add_argument("--label", default="violence")
+    clips.add_argument(
+        "--events",
+        default="violence_detected,altercation",
+        help="predicted event types that count as the label",
+    )
+    clips.add_argument(
+        "--out", type=Path, default=Path("eval_results/clips.json")
+    )
+    clips.set_defaults(func=run_clips)
 
     return parser
 
