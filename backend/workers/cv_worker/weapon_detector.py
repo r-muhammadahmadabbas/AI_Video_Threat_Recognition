@@ -12,13 +12,16 @@ Accuracy improvements:
 
 from __future__ import annotations
 
-import os
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import cv2
-import numpy as np
 from ultralytics import YOLO
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
 WEAPON_CLASSES = {
@@ -74,8 +77,8 @@ class WeaponDetector:
         temporal_history: int = 6,
     ) -> None:
         if model_path is None:
-            model_path = os.path.join(
-                os.path.dirname(__file__), "..", "..", "models", "model", "best.pt"
+            model_path = str(
+                Path(__file__).resolve().parents[2] / "models" / "model" / "best.pt"
             )
         self.model = YOLO(model_path)
         self.confidence = confidence
@@ -83,6 +86,10 @@ class WeaponDetector:
         self.temporal_window = temporal_window
         self.temporal_history = temporal_history
         self._history: deque[list[WeaponDetection]] = deque(maxlen=temporal_history)
+
+    def reset(self) -> None:
+        """Drop temporal voting history so one instance can serve a new clip."""
+        self._history.clear()
 
     def detect(self, frame: np.ndarray) -> list[WeaponDetection]:
         """Run weapon detection with flip augmentation and class-aware NMS."""
@@ -95,7 +102,7 @@ class WeaponDetector:
             source=frame_flipped, conf=self.confidence, device=self.device, verbose=False, iou=0.5
         )
 
-        h, w = frame.shape[:2]
+        w = frame.shape[1]
         all_dets: list[WeaponDetection] = []
 
         for results, is_flip in [(results_normal, False), (results_flipped, True)]:
@@ -124,9 +131,7 @@ class WeaponDetector:
         filtered = self._class_aware_nms(all_dets, iou_threshold=0.5)
         self._history.append(filtered)
 
-        confirmed = self._temporal_vote(filtered)
-
-        return confirmed
+        return self._temporal_vote(filtered)
 
     def _temporal_vote(
         self, current: list[WeaponDetection]
@@ -164,13 +169,14 @@ class WeaponDetector:
             by_class.setdefault(d.class_name, []).append(d)
 
         kept: list[WeaponDetection] = []
-        for class_name, dets in by_class.items():
+        for dets in by_class.values():
             dets.sort(key=lambda d: d.confidence, reverse=True)
-            while dets:
-                best = dets.pop(0)
+            remaining = dets
+            while remaining:
+                best = remaining.pop(0)
                 kept.append(best)
-                dets = [
-                    d for d in dets
+                remaining = [
+                    d for d in remaining
                     if WeaponDetector._iou(best.bbox, d.bbox) < iou_threshold
                 ]
         return kept
