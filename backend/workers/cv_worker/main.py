@@ -11,6 +11,7 @@ import numpy as np
 from app.config import settings
 from app.evidence.storage import EvidenceStore, LocalEvidenceStore
 from app.logging import get_logger
+from workers.cv_worker.analyzer import AnalyzerConfig, FrameAnalyzer
 from workers.cv_worker.clip_writer import ClipError, ClipWriter
 from workers.cv_worker.detector import Detection, YOLO26Detector
 from workers.cv_worker.event_adapter import EventCandidate, PersonPresenceAdapter
@@ -105,6 +106,7 @@ class CVWorker:
         self._running = False
         self._video_source: VideoSource | None = None
         self._detector: YOLO26Detector | None = None
+        self._analyzer: FrameAnalyzer | None = None
         self._tracker: Tracker | None = None
         self._rule_engine: RuleEngine | None = None
         self._last_frame_timestamp: float | None = None
@@ -166,6 +168,25 @@ class CVWorker:
 
         return ByteTrackTracker(frame_rate=frame_rate, **tracker_args)
 
+    @staticmethod
+    def _analyzer_config() -> AnalyzerConfig:
+        """Build the analyzer config from ``MODEL_*`` settings.
+
+        Extra models (weapon, pose, violence) stay off unless explicitly
+        enabled, because they are much heavier than the person detector.
+        """
+        model = settings.model
+        return AnalyzerConfig(
+            person_model=model.detector_name,
+            person_confidence=model.detector_confidence,
+            person_iou=model.detector_iou,
+            device=model.inference_device,
+            weapon_enabled=model.weapon_detection_enabled,
+            weapon_confidence=model.weapon_confidence,
+            pose_enabled=model.pose_fall_detection_enabled,
+            violence_enabled=model.violence_detection_enabled,
+        )
+
     def start(self) -> None:
         logger.info(
             "Starting CV worker",
@@ -181,6 +202,9 @@ class CVWorker:
             iou=settings.model.detector_iou,
             device=settings.model.inference_device,
             classes=[0],
+        )
+        self._analyzer = FrameAnalyzer(
+            self._analyzer_config(), person_model=self._detector
         )
 
         if self._enable_tracking:
@@ -282,6 +306,11 @@ class CVWorker:
 
     def _process_frame(self, frame: Frame) -> None:
         assert self._detector is not None
+        detections = (
+            self._analyzer.analyze(frame.data).persons
+            if self._analyzer is not None
+            else self._detector.detect(frame.data)
+        )
 
         if self._evidence_store is not None:
             buffered = BufferedFrame(
@@ -293,7 +322,6 @@ class CVWorker:
             self._append_to_active_windows(buffered)
         self._close_windows(frame.frame_number)
 
-        detections = self._detector.detect(frame.data)
         self._processed_frames += 1
 
         snapshot: TrackSnapshot | None = None

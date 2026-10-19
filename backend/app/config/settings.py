@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -80,6 +80,10 @@ class ModelSettings(BaseSettings):
     inference_device: Literal["cpu", "cuda", "mps"] = "cpu"
     inference_batch_size: int = 1
     inference_target_fps: float = 5.0
+    weapon_detection_enabled: bool = False
+    weapon_confidence: float = 0.25
+    pose_fall_detection_enabled: bool = False
+    violence_detection_enabled: bool = False
 
 
 class VideoSettings(BaseSettings):
