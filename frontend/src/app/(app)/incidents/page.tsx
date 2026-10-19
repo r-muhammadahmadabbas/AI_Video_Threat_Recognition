@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo } from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ChevronLeft,
@@ -47,18 +48,50 @@ const STATUSES = [
   "merged",
 ];
 
-export default function IncidentsPage() {
-  const [page, setPage] = useState(1);
-  const pageSize = 20;
-  const [search, setSearch] = useState("");
-  const [severity, setSeverity] = useState("");
-  const [status, setStatus] = useState("");
+const PAGE_SIZE = 20;
+
+function IncidentsContent() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  const rawPage = Number(searchParams.get("page") ?? "1");
+  const page =
+    Number.isFinite(rawPage) && rawPage >= 1 ? Math.floor(rawPage) : 1;
+  const search = searchParams.get("q") ?? "";
+  const rawSeverity = searchParams.get("severity") ?? "";
+  const severity = SEVERITIES.includes(rawSeverity) ? rawSeverity : "";
+  const rawStatus = searchParams.get("status") ?? "";
+  const status = STATUSES.includes(rawStatus) ? rawStatus : "";
+
+  const updateParams = (updates: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) next.set(key, value);
+      else next.delete(key);
+    }
+    next.delete("page");
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  };
+
+  const goToPage = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams.toString());
+    if (nextPage <= 1) next.delete("page");
+    else next.set("page", String(nextPage));
+    const query = next.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, {
+      scroll: false,
+    });
+  };
 
   const { data, loading, error, refetch } = useFetch<IncidentListResponse>(
     () =>
       api.getIncidents({
         page,
-        page_size: pageSize,
+        page_size: PAGE_SIZE,
         event_type: search || undefined,
         severity: severity || undefined,
         status: status || undefined,
@@ -72,7 +105,7 @@ export default function IncidentsPage() {
   }, [refetch]);
 
   const totalPages = useMemo(
-    () => (data ? Math.max(1, Math.ceil(data.total / pageSize)) : 1),
+    () => (data ? Math.max(1, Math.ceil(data.total / PAGE_SIZE)) : 1),
     [data],
   );
 
@@ -92,12 +125,7 @@ export default function IncidentsPage() {
             variant="ghost"
             size="sm"
             className="gap-1.5 text-muted-foreground"
-            onClick={() => {
-              setSearch("");
-              setSeverity("");
-              setStatus("");
-              setPage(1);
-            }}
+            onClick={() => router.replace(pathname, { scroll: false })}
           >
             <X className="h-3.5 w-3.5" aria-hidden="true" />
             Clear filters
@@ -114,22 +142,20 @@ export default function IncidentsPage() {
                 aria-hidden="true"
               />
               <Input
-                placeholder="Search incidents…"
-                aria-label="Search incidents"
+                placeholder="Filter by event type…"
+                aria-label="Filter by event type"
                 value={search}
-                onChange={(event) => {
-                  setSearch(event.target.value);
-                  setPage(1);
-                }}
+                onChange={(event) =>
+                  updateParams({ q: event.target.value || null })
+                }
                 className="pl-8"
               />
             </div>
             <Select
               value={status || "all"}
-              onValueChange={(value) => {
-                setStatus(value === "all" ? "" : value);
-                setPage(1);
-              }}
+              onValueChange={(value) =>
+                updateParams({ status: value === "all" ? null : value })
+              }
             >
               <SelectTrigger
                 className="w-full sm:w-44"
@@ -153,10 +179,8 @@ export default function IncidentsPage() {
             >
               <button
                 type="button"
-                onClick={() => {
-                  setSeverity("");
-                  setPage(1);
-                }}
+                aria-pressed={severity === ""}
+                onClick={() => updateParams({ severity: null })}
                 className={cn(
                   "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                   severity === ""
@@ -170,10 +194,8 @@ export default function IncidentsPage() {
                 <button
                   key={item}
                   type="button"
-                  onClick={() => {
-                    setSeverity(item);
-                    setPage(1);
-                  }}
+                  aria-pressed={severity === item}
+                  onClick={() => updateParams({ severity: item })}
                   className={cn(
                     "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
                     severity === item
@@ -302,14 +324,14 @@ export default function IncidentsPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs text-muted-foreground">
               {data && data.total > 0
-                ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, data.total)} of ${data.total}`
+                ? `${(page - 1) * PAGE_SIZE + 1}–${Math.min(page * PAGE_SIZE, data.total)} of ${data.total}`
                 : "0 incidents"}
             </span>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => goToPage(Math.max(1, page - 1))}
                 disabled={page === 1}
                 aria-label="Previous page"
               >
@@ -321,7 +343,7 @@ export default function IncidentsPage() {
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => goToPage(Math.min(totalPages, page + 1))}
                 disabled={page >= totalPages}
                 aria-label="Next page"
               >
@@ -332,5 +354,25 @@ export default function IncidentsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function IncidentsPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex flex-col gap-5">
+          <div>
+            <h1 className="text-xl font-semibold tracking-tight">Incidents</h1>
+            <p className="text-sm text-muted-foreground">
+              Review and manage security incidents
+            </p>
+          </div>
+          <Skeleton className="h-96" />
+        </div>
+      }
+    >
+      <IncidentsContent />
+    </Suspense>
   );
 }

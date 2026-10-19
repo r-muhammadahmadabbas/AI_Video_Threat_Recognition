@@ -21,7 +21,7 @@ export interface FeedIncident {
 
 interface ShellState {
   incidents: FeedIncident[];
-  newCount: number;
+  detectedCount: number;
   feedOpen: boolean;
   setFeedOpen: (open: boolean) => void;
   toggleFeed: () => void;
@@ -59,13 +59,13 @@ export function ShellProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
-  const newCount = incidents.filter(
+  const detectedCount = incidents.filter(
     (incident) => incident.status === "detected",
   ).length;
 
   const value: ShellState = {
     incidents,
-    newCount,
+    detectedCount,
     feedOpen,
     setFeedOpen,
     toggleFeed: () => setFeedOpen((open) => !open),

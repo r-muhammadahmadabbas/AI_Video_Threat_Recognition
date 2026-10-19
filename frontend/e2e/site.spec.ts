@@ -52,5 +52,5 @@ test("dashboard renders KPIs and trend widget", async ({ page }) => {
     page.getByRole("heading", { name: "Dashboard", level: 1 }),
   ).toBeVisible();
   await expect(page.getByText("Incident trend")).toBeVisible();
-  await expect(page.getByText("Site Twin")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Site Twin" })).toBeVisible();
 });

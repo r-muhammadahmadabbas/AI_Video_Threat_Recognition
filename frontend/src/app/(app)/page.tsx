@@ -6,8 +6,6 @@ import { useEffect, useMemo } from "react";
 import {
   AlertTriangle,
   Clock,
-  MapPin,
-  Radio,
   ScanSearch,
   ShieldAlert,
   Video,
@@ -16,9 +14,7 @@ import { api } from "@/lib/api";
 import type { Camera, DashboardStats, Paginated } from "@/types";
 import { useFetch } from "@/hooks/use-fetch";
 import { useShell } from "@/components/shell/shell-context";
-import { eventInfo, ruleLabel } from "@/lib/labels";
 import { timeAgo } from "@/lib/time";
-import { SeverityBadge, StatusBadge } from "@/components/status-badges";
 import { StatusDot } from "@/components/status-dot";
 import { EmptyState, ErrorState } from "@/components/empty-state";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
@@ -118,11 +114,10 @@ export default function DashboardPage() {
     });
   }, [camerasData]);
 
-  const cameraNames = useMemo(() => {
-    const names = new Map<number, string>();
-    for (const camera of cameras) names.set(camera.id, camera.name);
-    return names;
-  }, [cameras]);
+  const offlineCameras = useMemo(
+    () => cameras.filter((camera) => camera.status !== "online"),
+    [cameras],
+  );
 
   const spark = useMemo(
     () => buildSparkline(series.incidents),
@@ -145,26 +140,12 @@ export default function DashboardPage() {
             System overview and key metrics
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline" className="gap-1.5">
-            <Link href="/live">
-              <Radio className="h-4 w-4" aria-hidden="true" />
-              Live stream
-            </Link>
-          </Button>
-          <Button asChild variant="outline" className="gap-1.5">
-            <Link href="/site">
-              <MapPin className="h-4 w-4" aria-hidden="true" />
-              Site map
-            </Link>
-          </Button>
-          <Button asChild className="gap-1.5">
-            <Link href="/detect">
-              <ScanSearch className="h-4 w-4" aria-hidden="true" />
-              New detection
-            </Link>
-          </Button>
-        </div>
+        <Button asChild className="gap-1.5">
+          <Link href="/detect">
+            <ScanSearch className="h-4 w-4" aria-hidden="true" />
+            New detection
+          </Link>
+        </Button>
       </div>
 
       {error ? <ErrorState message={error} /> : null}
@@ -196,7 +177,7 @@ export default function DashboardPage() {
               featured
               tone={pending > 0 ? "critical" : "ok"}
               allClear={pending === 0}
-              href="/incidents"
+              href="/incidents?status=pending_review"
               footer={
                 pending === 0 && lastIncident ? (
                   <p className="text-xs text-muted-foreground">
@@ -299,90 +280,33 @@ export default function DashboardPage() {
                   description="Add a camera to start monitoring zones and rules."
                   icon={Video}
                 />
-              ) : (
-                <ul className="divide-y divide-border">
-                  {cameras.slice(0, 8).map((camera) => {
-                    const isOnline = camera.status === "online";
-                    return (
-                      <li
-                        key={camera.id}
-                        className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0"
-                      >
-                        <StatusDot online={isOnline} />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm">{camera.name}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {isOnline ? "Online" : "Offline"}
-                            {camera.inference_enabled
-                              ? ` · inference ${camera.inference_fps ?? "—"} fps`
-                              : " · inference off"}
-                          </p>
-                        </div>
-                        <span className="text-[11px] uppercase text-muted-foreground">
-                          {camera.source_type}
-                        </span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        <div className="lg:col-span-12">
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between pb-3">
-              <CardTitle className="text-base">Live incident feed</CardTitle>
-              <Button asChild variant="ghost" size="sm">
-                <Link href="/incidents">View all</Link>
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {series.loading && series.incidents.length === 0 ? (
-                <div className="flex flex-col gap-2">
-                  {Array.from({ length: 6 }).map((_, index) => (
-                    <Skeleton key={index} className="h-11" />
-                  ))}
+              ) : offlineCameras.length === 0 ? (
+                <div className="flex items-center gap-2.5 py-2 text-sm text-muted-foreground">
+                  <StatusDot online />
+                  All {cameras.length} cameras online
                 </div>
-              ) : series.incidents.length === 0 ? (
-                <EmptyState
-                  title="No incidents yet"
-                  description="Detected threats will appear here for review."
-                  icon={AlertTriangle}
-                />
               ) : (
                 <ul className="divide-y divide-border">
-                  {series.incidents.slice(0, 8).map((incident) => {
-                    const Icon = eventInfo(incident.event_type).icon;
-                    return (
-                      <li key={incident.id}>
-                        <Link
-                          href={`/incidents/${incident.id}`}
-                          className="flex items-center gap-3 py-2.5 transition-colors hover:bg-surface-2/60"
-                        >
-                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-2 text-muted-foreground">
-                            <Icon className="h-4 w-4" aria-hidden="true" />
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm">
-                              {ruleLabel(incident.event_type)}
-                            </p>
-                            <p className="text-[11px] text-muted-foreground">
-                              {cameraNames.get(incident.camera_id) ??
-                                `Camera #${incident.camera_id}`}
-                              {" · "}
-                              {timeAgo(incident.first_seen_at)}
-                            </p>
-                          </div>
-                          <div className="flex shrink-0 items-center gap-2">
-                            <SeverityBadge severity={incident.severity} />
-                            <StatusBadge status={incident.status} />
-                          </div>
-                        </Link>
-                      </li>
-                    );
-                  })}
+                  {offlineCameras.slice(0, 8).map((camera) => (
+                    <li
+                      key={camera.id}
+                      className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0"
+                    >
+                      <StatusDot online={false} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm">{camera.name}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          Offline
+                          {camera.inference_enabled
+                            ? ` · inference ${camera.inference_fps ?? "—"} fps`
+                            : " · inference off"}
+                        </p>
+                      </div>
+                      <span className="text-[11px] uppercase text-muted-foreground">
+                        {camera.source_type}
+                      </span>
+                    </li>
+                  ))}
                 </ul>
               )}
             </CardContent>

@@ -88,7 +88,7 @@ export function Hotkeys() {
   const shortcuts = [
     { keys: "Ctrl K", label: "Open command palette" },
     { keys: "G then D", label: "Go to Dashboard" },
-    { keys: "G then L", label: "Go to Live stream" },
+    { keys: "G then L", label: "Go to Live capture" },
     { keys: "G then S", label: "Go to Site Twin" },
     { keys: "G then T", label: "Go to Detect" },
     { keys: "G then I", label: "Go to Incidents" },
@@ -101,7 +101,7 @@ export function Hotkeys() {
           { keys: "G then A", label: "Go to Audit log" },
         ]
       : []),
-    { keys: "F", label: "Toggle incident feed" },
+    { keys: "F", label: "Toggle incident inbox" },
     { keys: "?", label: "Show this help" },
   ];
 

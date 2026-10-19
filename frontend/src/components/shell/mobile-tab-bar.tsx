@@ -5,9 +5,14 @@ import { usePathname } from "next/navigation";
 import { NAV_ITEMS, isNavActive } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
+const MOBILE_HREFS = ["/", "/incidents", "/live", "/site", "/detect"];
+
 export function MobileTabBar() {
   const pathname = usePathname();
-  const items = NAV_ITEMS.filter((item) => item.mobile && !item.adminOnly);
+  const items = MOBILE_HREFS.flatMap((href) => {
+    const item = NAV_ITEMS.find((navItem) => navItem.href === href);
+    return item ? [item] : [];
+  });
 
   return (
     <nav

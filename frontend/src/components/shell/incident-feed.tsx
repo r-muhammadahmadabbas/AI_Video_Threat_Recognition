@@ -19,7 +19,7 @@ const SEVERITY_TEXT: Record<string, string> = {
 
 export function IncidentFeed() {
   const router = useRouter();
-  const { incidents, newCount, feedOpen, setFeedOpen } = useShell();
+  const { incidents, detectedCount, feedOpen, setFeedOpen } = useShell();
 
   return (
     <div
@@ -45,10 +45,10 @@ export function IncidentFeed() {
         )}
       >
         <header className="flex h-14 shrink-0 items-center gap-2 border-b border-border px-4">
-          <h2 className="text-sm font-semibold">Live feed</h2>
-          {newCount > 0 && (
+          <h2 className="text-sm font-semibold">Incident inbox</h2>
+          {detectedCount > 0 && (
             <span className="rounded-full bg-sev-critical-bg px-2 py-0.5 text-[11px] font-semibold tabular-nums text-sev-critical">
-              {newCount} new
+              {detectedCount} detected
             </span>
           )}
           <button

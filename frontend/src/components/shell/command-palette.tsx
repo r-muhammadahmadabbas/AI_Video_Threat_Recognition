@@ -3,14 +3,12 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Bell, LogOut, Rows3, Search, TimerReset, User } from "lucide-react";
+import { Bell, Search, User } from "lucide-react";
 import { useAuth } from "@/contexts/auth-context";
 import { useShell } from "@/components/shell/shell-context";
 import { NAV_ITEMS } from "@/lib/nav";
 import { ruleLabel, severityInfo, type IconComponent } from "@/lib/labels";
 import { timeAgo } from "@/lib/time";
-import { useDensity } from "@/lib/density";
-import { usePerfTier } from "@/lib/perf";
 import { cn } from "@/lib/utils";
 
 interface PaletteResult {
@@ -24,10 +22,8 @@ interface PaletteResult {
 
 export function CommandPalette() {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const { incidents, paletteOpen, setPaletteOpen, toggleFeed } = useShell();
-  const { mode, setMode } = useDensity();
-  const { tier, setTier } = usePerfTier();
   const [query, setQuery] = useState("");
   const [active, setActive] = useState(0);
 
@@ -39,49 +35,12 @@ export function CommandPalette() {
     {
       id: "action-feed",
       group: "Actions",
-      label: "Toggle incident feed",
+      label: "Toggle incident inbox",
       hint: "F",
       icon: Bell,
       run: () => {
         close();
         toggleFeed();
-      },
-    },
-    {
-      id: "action-density",
-      group: "Actions",
-      label:
-        mode === "compact"
-          ? "Switch to comfortable density"
-          : "Switch to compact density",
-      icon: Rows3,
-      run: () => {
-        close();
-        setMode(mode === "compact" ? "comfortable" : "compact");
-      },
-    },
-    {
-      id: "action-perf",
-      group: "Actions",
-      label:
-        tier === "full"
-          ? "Switch to lite rendering"
-          : "Switch to full rendering",
-      icon: TimerReset,
-      run: () => {
-        close();
-        setTier(tier === "full" ? "lite" : "full");
-      },
-    },
-    {
-      id: "action-logout",
-      group: "Actions",
-      label: "Sign out",
-      icon: LogOut,
-      run: () => {
-        close();
-        logout();
-        router.replace("/login");
       },
     },
   ];

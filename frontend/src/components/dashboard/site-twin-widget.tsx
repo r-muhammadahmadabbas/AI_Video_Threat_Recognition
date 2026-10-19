@@ -37,7 +37,7 @@ export function SiteTwinWidget({
           href="/site"
           className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
         >
-          Open full view
+          Open Site Twin
           <ArrowUpRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </CardHeader>

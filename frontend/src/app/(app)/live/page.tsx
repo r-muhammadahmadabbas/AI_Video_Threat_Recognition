@@ -28,17 +28,17 @@ export default function LivePage() {
       <div>
         <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
           <Radio className="h-5 w-5 text-primary" aria-hidden="true" />
-          Live stream
+          Live capture
         </h1>
         <p className="text-sm text-muted-foreground">
-          Stream live content from any mobile device and analyze it instantly
+          Record from a phone and analyze the clip instantly
         </p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground">
-            Mobile live capture
+            Connect a device
           </CardTitle>
         </CardHeader>
         <CardContent>

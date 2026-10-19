@@ -116,8 +116,7 @@ export default function SitePage() {
 
       {editing ? (
         <p className="rounded-md border border-border bg-surface-2 px-3 py-2 text-xs text-muted-foreground">
-          Drag cameras on the 2D map to move them. Layout is saved in this
-          browser only.
+          Drag cameras on the 2D map to move them.
         </p>
       ) : null}
 
@@ -220,12 +219,7 @@ export default function SitePage() {
               <>
                 <div className="flex flex-wrap items-center gap-2 text-sm">
                   <span className="inline-flex items-center gap-1.5">
-                    <span
-                      className={`h-2 w-2 rounded-full ${
-                        online ? "bg-ok" : "bg-muted-foreground/50"
-                      }`}
-                      aria-hidden="true"
-                    />
+                    <StatusDot online={online} />
                     {online ? "Online" : "Offline"}
                   </span>
                   <span className="rounded border border-border bg-surface-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -304,14 +298,9 @@ export default function SitePage() {
                   )}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  <Button asChild variant="outline" size="sm">
-                    <Link href="/cameras">Manage cameras</Link>
-                  </Button>
-                  <Button asChild variant="ghost" size="sm">
-                    <Link href="/incidents">All incidents</Link>
-                  </Button>
-                </div>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/incidents">All incidents</Link>
+                </Button>
               </>
             )}
           </CardContent>
@@ -321,7 +310,7 @@ export default function SitePage() {
       {!loading && !error ? (
         <p className="text-xs text-muted-foreground">
           Camera positions are not stored by the API. This layout is saved in
-          this browser, not shared with other operators.{" "}
+          this browser only, so other operators won&apos;t see it.{" "}
           <button
             type="button"
             onClick={() => refetch()}

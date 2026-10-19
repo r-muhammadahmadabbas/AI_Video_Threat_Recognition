@@ -1,20 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Edit,
-  Loader2,
-  Plus,
-  Trash2,
-  Video,
-  Wifi,
-  WifiOff,
-} from "lucide-react";
+import { Edit, Loader2, Plus, Trash2, Video } from "lucide-react";
 import { toast } from "sonner";
 import { api, apiErrorMessage } from "@/lib/api";
 import { Camera, Paginated } from "@/types";
 import { useFetch } from "@/hooks/use-fetch";
 import { EmptyState, ErrorState } from "@/components/empty-state";
+import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -200,17 +193,7 @@ export default function CamerasPage() {
                       </TableCell>
                       <TableCell>
                         <span className="inline-flex items-center gap-2 text-sm capitalize">
-                          {online ? (
-                            <Wifi
-                              className="h-4 w-4 text-ok"
-                              aria-hidden="true"
-                            />
-                          ) : (
-                            <WifiOff
-                              className="h-4 w-4 text-muted-foreground"
-                              aria-hidden="true"
-                            />
-                          )}
+                          <StatusDot online={online} />
                           {camera.status || "unknown"}
                         </span>
                       </TableCell>
