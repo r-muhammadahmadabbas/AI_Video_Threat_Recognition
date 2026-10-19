@@ -85,7 +85,6 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
       <div
         role="button"
         tabIndex={0}
-        aria-label={`Choose a ${isVideo ? "video" : "image"} file`}
         onClick={() => inputRef.current?.click()}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === " ") {
@@ -151,7 +150,15 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
       )}
 
       {file && previewUrl && (
-        <div className="overflow-hidden rounded-xl border border-border bg-black">
+        <div className="relative overflow-hidden rounded-xl border border-border bg-black">
+          {loading && (
+            <div
+              className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
+              aria-hidden="true"
+            >
+              <div className="scan-line h-16 w-full bg-gradient-to-b from-transparent via-primary/25 to-transparent" />
+            </div>
+          )}
           {isVideo ? (
             <video src={previewUrl} controls className="max-h-[420px] w-full" />
           ) : (

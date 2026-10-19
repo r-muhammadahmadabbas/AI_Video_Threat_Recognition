@@ -41,7 +41,7 @@ export function Topbar() {
           className="gap-2 text-muted-foreground"
         >
           <Search className="h-4 w-4" aria-hidden="true" />
-          <span className="hidden sm:inline">Search</span>
+          <span className="sr-only sm:not-sr-only">Search</span>
           <kbd className="hidden rounded border border-border-strong bg-surface-2 px-1.5 py-0.5 font-mono text-[10px] md:inline">
             Ctrl K
           </kbd>

@@ -24,6 +24,7 @@ export function IncidentFeed() {
   return (
     <div
       aria-hidden={!feedOpen}
+      inert={!feedOpen}
       className={cn(
         "fixed inset-0 z-40 md:left-auto md:top-14 md:w-[380px]",
         !feedOpen && "pointer-events-none",

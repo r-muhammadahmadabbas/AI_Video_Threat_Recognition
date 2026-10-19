@@ -18,6 +18,7 @@ import { useFetch } from "@/hooks/use-fetch";
 import { AuthenticatedImage } from "@/components/authenticated-image";
 import { useShell } from "@/components/shell/shell-context";
 import { SeverityBadge } from "@/components/status-badges";
+import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -159,12 +160,7 @@ export default function SitePage() {
                             : "text-muted-foreground hover:bg-surface-2 hover:text-foreground"
                         }`}
                       >
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            isOnline ? "bg-ok" : "bg-muted-foreground/50"
-                          }`}
-                          aria-hidden="true"
-                        />
+                        <StatusDot online={isOnline} />
                         <span className="min-w-0 flex-1 truncate">
                           {camera.name}
                         </span>

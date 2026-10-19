@@ -19,6 +19,7 @@ import { useShell } from "@/components/shell/shell-context";
 import { eventInfo, ruleLabel } from "@/lib/labels";
 import { timeAgo } from "@/lib/time";
 import { SeverityBadge, StatusBadge } from "@/components/status-badges";
+import { StatusDot } from "@/components/status-dot";
 import { EmptyState, ErrorState } from "@/components/empty-state";
 import { KpiTile } from "@/components/dashboard/kpi-tile";
 import { SiteTwinWidget } from "@/components/dashboard/site-twin-widget";
@@ -307,12 +308,7 @@ export default function DashboardPage() {
                         key={camera.id}
                         className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0"
                       >
-                        <span
-                          className={`h-2 w-2 shrink-0 rounded-full ${
-                            isOnline ? "bg-ok" : "bg-muted-foreground/40"
-                          }`}
-                          aria-hidden="true"
-                        />
+                        <StatusDot online={isOnline} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm">{camera.name}</p>
                           <p className="text-[11px] text-muted-foreground">

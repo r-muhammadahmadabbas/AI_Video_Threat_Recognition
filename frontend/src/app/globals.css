@@ -265,3 +265,27 @@
 @media (prefers-reduced-motion: reduce) {
   .site-ping { animation: none; opacity: 0.8; }
 }
+
+/* Report reveal + detect scan-line */
+@keyframes reveal {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+.analysis-reveal > * {
+  animation: reveal 320ms var(--ease-out-expo) both;
+}
+.analysis-reveal > *:nth-child(2) { animation-delay: 60ms; }
+.analysis-reveal > *:nth-child(3) { animation-delay: 120ms; }
+.analysis-reveal > *:nth-child(4) { animation-delay: 180ms; }
+.analysis-reveal > *:nth-child(5) { animation-delay: 240ms; }
+.analysis-reveal > *:nth-child(6) { animation-delay: 300ms; }
+.analysis-reveal > *:nth-child(n + 7) { animation-delay: 360ms; }
+
+@keyframes scan-line {
+  from { transform: translateY(-120%); }
+  to { transform: translateY(720%); }
+}
+
+.scan-line {
+  animation: scan-line 1.6s linear infinite;
+}
