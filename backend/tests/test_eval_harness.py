@@ -209,6 +209,22 @@ class TestDatasets:
         assert label.class_name == "person"
         assert label.bbox == pytest.approx((40.0, 15.0, 60.0, 35.0))
 
+    def test_yolo_gt_can_keep_only_requested_classes(self, tmp_path):
+        images = tmp_path / "images"
+        labels = tmp_path / "labels"
+        images.mkdir()
+        labels.mkdir()
+        Image.new("RGB", (100, 50)).save(images / "img.png")
+        (labels / "img.txt").write_text(
+            "0 0.5 0.5 0.2 0.4\n1 0.1 0.1 0.1 0.1\n", encoding="utf-8"
+        )
+        classes = tmp_path / "classes.txt"
+        classes.write_text("firearm\nperson\n", encoding="utf-8")
+
+        gt = yolo_gt(images, labels, classes, classes=("firearm",))
+
+        assert [label.class_name for label in gt["img.png"]] == ["firearm"]
+
     def test_missing_images_fail_loudly(self, tmp_path):
         gt = {"missing.jpg": []}
         with pytest.raises(FileNotFoundError, match=r"missing\.jpg"):

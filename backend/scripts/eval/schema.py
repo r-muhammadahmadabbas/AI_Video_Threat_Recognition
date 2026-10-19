@@ -123,3 +123,26 @@ def save_predictions(
         for image_id, image_predictions in predictions.items()
     ]
     path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+
+
+def save_clip_events(path: Path, clips: dict[str, ClipEvents]) -> None:
+    """Write per-clip events as JSON Lines (``load_event_gt`` reads them back)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        json.dumps(
+            {
+                "clip": clip.clip,
+                "duration": clip.duration,
+                "events": [
+                    {
+                        "type": event.event_type,
+                        "start": round(event.start, 3),
+                        "end": round(event.end, 3),
+                    }
+                    for event in clip.events
+                ],
+            }
+        )
+        for clip in clips.values()
+    ]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")

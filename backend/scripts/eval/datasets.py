@@ -58,14 +58,21 @@ def yolo_gt(
     images_dir: Path,
     labels_dir: Path,
     classes_path: Path,
+    classes: tuple[str, ...] | None = None,
     limit: int | None = None,
 ) -> dict[str, list[BoxLabel]]:
-    """Read a YOLO-format detection folder into per-image ``xyxy`` labels."""
+    """Read a YOLO-format detection folder into per-image ``xyxy`` labels.
+
+    ``classes`` keeps only the named classes (all classes when ``None``),
+    matching the ``coco_gt`` filter so threat-only subsets can be scored
+    without non-production classes dragging the mean AP down.
+    """
     class_names = [
         line.strip()
         for line in classes_path.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
+    wanted = set(classes) if classes is not None else None
     image_files = sorted(
         path
         for path in images_dir.iterdir()
@@ -86,10 +93,13 @@ def yolo_gt(
                 if len(parts) != 5:
                     continue
                 class_id = int(parts[0])
+                class_name = class_names[class_id]
+                if wanted is not None and class_name not in wanted:
+                    continue
                 cx, cy, box_width, box_height = (float(value) for value in parts[1:])
                 labels.append(
                     BoxLabel(
-                        class_name=class_names[class_id],
+                        class_name=class_name,
                         bbox=(
                             (cx - box_width / 2) * width,
                             (cy - box_height / 2) * height,

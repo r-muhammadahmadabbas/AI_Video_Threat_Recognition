@@ -44,8 +44,10 @@ def _load_gt(args: argparse.Namespace) -> dict:
     if args.gt_jsonl is not None:
         return load_box_gt(args.gt_jsonl)
     if args.coco_annotations is not None:
-        classes = tuple(
-            name.strip() for name in args.classes.split(",") if name.strip()
+        classes = (
+            tuple(name.strip() for name in args.classes.split(",") if name.strip())
+            if args.classes
+            else ("person",)
         )
         return coco_gt(args.coco_annotations, classes=classes, limit=args.limit)
     if args.yolo_images is not None:
@@ -53,10 +55,16 @@ def _load_gt(args: argparse.Namespace) -> dict:
             raise SystemExit(
                 "--yolo-images requires --yolo-labels and --yolo-classes"
             )
+        wanted = (
+            tuple(name.strip() for name in args.classes.split(",") if name.strip())
+            if args.classes
+            else None
+        )
         return yolo_gt(
             args.yolo_images,
             args.yolo_labels,
             args.yolo_classes,
+            classes=wanted,
             limit=args.limit,
         )
     raise SystemExit(
@@ -203,7 +211,12 @@ def build_parser() -> argparse.ArgumentParser:
     detections.add_argument("--yolo-classes", type=Path)
     detections.add_argument("--image-root", type=Path, required=True)
     detections.add_argument(
-        "--classes", default="person", help="comma-separated COCO classes"
+        "--classes",
+        default=None,
+        help=(
+            "comma-separated classes to keep (COCO default: person; "
+            "YOLO default: all classes)"
+        ),
     )
     detections.add_argument("--limit", type=int, default=None)
     detections.add_argument("--model", default="yolo26n")
