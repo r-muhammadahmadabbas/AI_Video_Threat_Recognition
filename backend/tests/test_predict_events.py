@@ -155,6 +155,16 @@ class TestVideoFiles:
 
         assert [path.name for path in video_files(tmp_path)] == ["a.MP4", "b.mp4"]
 
+    def test_nested_folder_trees_are_discovered_recursively(self, tmp_path):
+        fight = tmp_path / "Fight"
+        nonfight = tmp_path / "NonFight"
+        fight.mkdir()
+        nonfight.mkdir()
+        (fight / "a.avi").write_bytes(b"x")
+        (nonfight / "b.avi").write_bytes(b"x")
+
+        assert [path.name for path in video_files(tmp_path)] == ["a.avi", "b.avi"]
+
 
 class TestSchemaClips:
     def test_save_clip_events_round_trips_through_loader(self, tmp_path):

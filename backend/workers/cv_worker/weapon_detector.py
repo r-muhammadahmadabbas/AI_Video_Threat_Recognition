@@ -21,6 +21,8 @@ import cv2
 from ultralytics import YOLO
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
+
     import numpy as np
 
 
@@ -37,8 +39,8 @@ WEAPON_CLASSES = {
 THREAT_CLASSES = {"firearm", "melee_weapon", "explosive", "blunt_weapon"}
 
 CLASS_CONFIDENCE = {
-    "firearm": 0.25,
-    "melee_weapon": 0.30,
+    "firearm": 0.35,
+    "melee_weapon": 0.35,
     "explosive": 0.35,
     "blunt_weapon": 0.35,
     "person": 0.40,
@@ -73,8 +75,10 @@ class WeaponDetector:
         model_path: str | None = None,
         confidence: float = 0.25,
         device: str = "cpu",
+        *,
         temporal_window: int = 1,
         temporal_history: int = 6,
+        class_thresholds: Mapping[str, float] | None = None,
     ) -> None:
         if model_path is None:
             model_path = str(
@@ -85,21 +89,39 @@ class WeaponDetector:
         self.device = device
         self.temporal_window = temporal_window
         self.temporal_history = temporal_history
+        self._class_thresholds = dict(
+            CLASS_CONFIDENCE if class_thresholds is None else class_thresholds
+        )
+        self._run_confidence = max(
+            self.confidence, min(self._class_thresholds.values(), default=self.confidence)
+        )
         self._history: deque[list[WeaponDetection]] = deque(maxlen=temporal_history)
 
     def reset(self) -> None:
         """Drop temporal voting history so one instance can serve a new clip."""
         self._history.clear()
 
+    def threshold_for(self, class_name: str) -> float:
+        """Effective confidence floor for one class: config never lowers it."""
+        return max(self.confidence, self._class_thresholds.get(class_name, self.confidence))
+
     def detect(self, frame: np.ndarray) -> list[WeaponDetection]:
         """Run weapon detection with flip augmentation and class-aware NMS."""
         results_normal = self.model.predict(
-            source=frame, conf=self.confidence, device=self.device, verbose=False, iou=0.5
+            source=frame,
+            conf=self._run_confidence,
+            device=self.device,
+            verbose=False,
+            iou=0.5,
         )
 
         frame_flipped = cv2.flip(frame, 1)
         results_flipped = self.model.predict(
-            source=frame_flipped, conf=self.confidence, device=self.device, verbose=False, iou=0.5
+            source=frame_flipped,
+            conf=self._run_confidence,
+            device=self.device,
+            verbose=False,
+            iou=0.5,
         )
 
         w = frame.shape[1]
@@ -127,6 +149,12 @@ class WeaponDetector:
                             bbox=(x1, y1, x2, y2),
                         )
                     )
+
+        all_dets = [
+            detection
+            for detection in all_dets
+            if detection.confidence >= self.threshold_for(detection.class_name)
+        ]
 
         filtered = self._class_aware_nms(all_dets, iou_threshold=0.5)
         self._history.append(filtered)

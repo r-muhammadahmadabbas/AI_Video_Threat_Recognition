@@ -61,10 +61,14 @@ class CaptureLike(Protocol):
 
 
 def video_files(directory: Path) -> list[Path]:
-    """Every video file directly under ``directory``, in stable order."""
+    """Every video file under ``directory`` (recursively), in stable order.
+
+    Recursion matters for folder trees like ``val/Fight/*.avi``; clip ids then
+    stay unique through :func:`clip_id_for`.
+    """
     return sorted(
         path
-        for path in directory.iterdir()
+        for path in directory.rglob("*")
         if path.is_file() and path.suffix.lower() in VIDEO_SUFFIXES
     )
 

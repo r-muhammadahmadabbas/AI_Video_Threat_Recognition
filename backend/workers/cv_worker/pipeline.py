@@ -142,7 +142,9 @@ class DetectionPipeline:
                 weapon_enabled=True,
                 weapon_confidence=confidence,
                 pose_enabled=True,
+                pose_interval=1,
                 violence_enabled=True,
+                violence_interval=1,
             )
         )
         self._tracker = tracker or ByteTrackTracker(frame_rate=frame_rate)
