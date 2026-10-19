@@ -35,11 +35,11 @@ export function LiveQrCard() {
 
   return (
     <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-6">
-      <div className="rounded-xl border border-border bg-white p-4">
+      <div className="rounded-lg border border-border-strong bg-white p-4">
         {url ? (
           <QRCodeSVG value={url} size={180} level="M" />
         ) : (
-          <div className="h-[180px] w-[180px] animate-pulse rounded bg-muted" />
+          <div className="h-[180px] w-[180px] animate-pulse rounded bg-surface-2" />
         )}
       </div>
       <div className="flex flex-1 flex-col gap-3 text-center sm:text-left">
@@ -55,21 +55,24 @@ export function LiveQrCard() {
         <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
           <Button variant="outline" size="sm" onClick={copy}>
             {copied ? (
-              <Check className="h-4 w-4 text-green-500" />
+              <Check className="h-4 w-4 text-ok" aria-hidden="true" />
             ) : (
-              <Copy className="h-4 w-4" />
+              <Copy className="h-4 w-4" aria-hidden="true" />
             )}
             {copied ? "Copied" : "Copy link"}
           </Button>
           <Button asChild variant="outline" size="sm">
             <a href={url || "/live/capture"} target="_blank" rel="noreferrer">
-              <ExternalLink className="h-4 w-4" />
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
               Open capture page
             </a>
           </Button>
         </div>
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-700">
-          <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+        <div className="flex items-start gap-2 rounded-lg border border-sev-high/40 bg-sev-high-bg px-3 py-2 text-xs text-sev-high">
+          <ShieldAlert
+            className="mt-0.5 h-3.5 w-3.5 shrink-0"
+            aria-hidden="true"
+          />
           Mobile browsers require HTTPS (or localhost) to access the camera. Use
           an HTTPS URL or a tunnel when scanning from a phone on the network.
         </div>

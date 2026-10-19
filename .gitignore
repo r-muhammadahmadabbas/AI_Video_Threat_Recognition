@@ -58,3 +58,6 @@ docker-compose.override.yml
 
 # Testing
 *.prof
+frontend/test-results/
+frontend/playwright-report/
+frontend/.next/

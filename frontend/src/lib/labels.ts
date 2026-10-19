@@ -153,6 +153,14 @@ export function ruleIcon(rule: string): IconComponent | null {
   return RULE_ICONS[rule] ?? null;
 }
 
+export interface EventInfo {
+  icon: IconComponent;
+}
+
+export function eventInfo(event: string): EventInfo {
+  return { icon: ruleIcon(event) ?? classInfo(event).icon };
+}
+
 export interface SeverityInfo {
   token: string;
   icon: IconComponent;

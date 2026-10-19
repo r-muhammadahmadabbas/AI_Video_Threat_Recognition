@@ -2,12 +2,21 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { AlertTriangle, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  Search,
+  X,
+} from "lucide-react";
 import { api } from "@/lib/api";
 import { IncidentListResponse } from "@/types";
 import { useFetch } from "@/hooks/use-fetch";
 import { SeverityBadge, StatusBadge } from "@/components/status-badges";
 import { EmptyState, ErrorState } from "@/components/empty-state";
+import { classInfo, eventInfo, ruleLabel, severityInfo } from "@/lib/labels";
+import { timeAgo } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -27,8 +36,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
-const SEVERITIES = ["low", "medium", "high", "critical"];
+const SEVERITIES = ["critical", "high", "medium", "low"];
 const STATUSES = [
   "detected",
   "pending_review",
@@ -66,46 +76,54 @@ export default function IncidentsPage() {
     [data],
   );
 
+  const hasFilters = severity !== "" || status !== "" || search !== "";
+
   return (
-    <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold">Incidents</h1>
-        <p className="text-sm text-muted-foreground">
-          Review and manage security incidents
-        </p>
+    <div className="flex flex-col gap-5">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-xl font-semibold tracking-tight">Incidents</h1>
+          <p className="text-sm text-muted-foreground">
+            Review and manage security incidents
+          </p>
+        </div>
+        {hasFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            className="gap-1.5 text-muted-foreground"
+            onClick={() => {
+              setSearch("");
+              setSeverity("");
+              setStatus("");
+              setPage(1);
+            }}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+            Clear filters
+          </Button>
+        )}
       </div>
 
       <Card>
-        <CardContent className="flex flex-col gap-4 p-5">
+        <CardContent className="flex flex-col gap-4 p-4 md:p-5">
           <div className="flex flex-wrap items-center gap-3">
-            <Input
-              placeholder="Search event type..."
-              value={search}
-              onChange={(event) => {
-                setSearch(event.target.value);
-                setPage(1);
-              }}
-              className="w-full sm:w-64"
-            />
-            <Select
-              value={severity || "all"}
-              onValueChange={(value) => {
-                setSeverity(value === "all" ? "" : value);
-                setPage(1);
-              }}
-            >
-              <SelectTrigger className="w-full sm:w-40">
-                <SelectValue placeholder="All severities" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All severities</SelectItem>
-                {SEVERITIES.map((item) => (
-                  <SelectItem key={item} value={item} className="capitalize">
-                    {item}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="relative w-full sm:w-64">
+              <Search
+                className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground"
+                aria-hidden="true"
+              />
+              <Input
+                placeholder="Search incidents…"
+                aria-label="Search incidents"
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value);
+                  setPage(1);
+                }}
+                className="pl-8"
+              />
+            </div>
             <Select
               value={status || "all"}
               onValueChange={(value) => {
@@ -113,18 +131,60 @@ export default function IncidentsPage() {
                 setPage(1);
               }}
             >
-              <SelectTrigger className="w-full sm:w-44">
+              <SelectTrigger
+                className="w-full sm:w-44"
+                aria-label="Filter by status"
+              >
                 <SelectValue placeholder="All statuses" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {STATUSES.map((item) => (
-                  <SelectItem key={item} value={item} className="capitalize">
+                  <SelectItem key={item} value={item}>
                     {item.replace(/_/g, " ")}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <div
+              className="flex flex-wrap items-center gap-1.5"
+              role="group"
+              aria-label="Filter by severity"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setSeverity("");
+                  setPage(1);
+                }}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                  severity === ""
+                    ? "border-primary/50 bg-primary/15 text-primary"
+                    : "border-border-strong bg-surface-2 text-muted-foreground hover:text-foreground",
+                )}
+              >
+                All
+              </button>
+              {SEVERITIES.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  onClick={() => {
+                    setSeverity(item);
+                    setPage(1);
+                  }}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+                    severity === item
+                      ? "border-primary/50 bg-primary/15 text-primary"
+                      : "border-border-strong bg-surface-2 text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {severityInfo(item).label}
+                </button>
+              ))}
+            </div>
           </div>
 
           {error && <ErrorState message={error} />}
@@ -142,78 +202,130 @@ export default function IncidentsPage() {
               icon={AlertTriangle}
             />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHeaderCell>Time</TableHeaderCell>
-                  <TableHeaderCell>Event</TableHeaderCell>
-                  <TableHeaderCell>Severity</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell>Confidence</TableHeaderCell>
-                  <TableHeaderCell>Camera</TableHeaderCell>
-                  <TableHeaderCell className="text-right">
-                    Actions
-                  </TableHeaderCell>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {data.items.map((incident) => (
-                  <TableRow key={incident.id}>
-                    <TableCell className="whitespace-nowrap text-sm">
-                      {new Date(incident.first_seen_at).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="font-medium capitalize">
-                      {incident.event_type.replace(/_/g, " ")}
-                    </TableCell>
-                    <TableCell>
-                      <SeverityBadge severity={incident.severity} />
-                    </TableCell>
-                    <TableCell>
-                      <StatusBadge status={incident.status} />
-                    </TableCell>
-                    <TableCell className="font-mono text-sm">
-                      {(incident.confidence * 100).toFixed(1)}%
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      #{incident.camera_id}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button asChild variant="outline" size="sm">
-                        <Link href={`/incidents/${incident.id}`}>
-                          <Eye className="h-4 w-4" />
-                          View
-                        </Link>
-                      </Button>
-                    </TableCell>
+            <div className="max-h-[65vh] overflow-auto rounded-lg border border-border">
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-surface-1">
+                  <TableRow>
+                    <TableHeaderCell>Time</TableHeaderCell>
+                    <TableHeaderCell>Event</TableHeaderCell>
+                    <TableHeaderCell>Severity</TableHeaderCell>
+                    <TableHeaderCell>Status</TableHeaderCell>
+                    <TableHeaderCell>Confidence</TableHeaderCell>
+                    <TableHeaderCell>Camera</TableHeaderCell>
+                    <TableHeaderCell className="text-right">
+                      Actions
+                    </TableHeaderCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHeader>
+                <TableBody>
+                  {data.items.map((incident) => {
+                    const EventIcon = eventInfo(incident.event_type).icon;
+                    const threat = classInfo(incident.event_type).threat;
+                    return (
+                      <TableRow key={incident.id}>
+                        <TableCell className="whitespace-nowrap">
+                          <span
+                            className="text-sm"
+                            title={new Date(
+                              incident.first_seen_at,
+                            ).toLocaleString()}
+                          >
+                            {timeAgo(incident.first_seen_at)}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex min-w-0 items-center gap-2.5">
+                            <EventIcon
+                              className={cn(
+                                "h-4 w-4 shrink-0",
+                                threat
+                                  ? "text-sev-high"
+                                  : "text-muted-foreground",
+                              )}
+                              aria-hidden="true"
+                            />
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-medium">
+                                {ruleLabel(incident.event_type)}
+                              </p>
+                              <p className="font-mono text-[11px] text-muted-foreground">
+                                #{incident.id}
+                              </p>
+                            </div>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <SeverityBadge severity={incident.severity} />
+                        </TableCell>
+                        <TableCell>
+                          <StatusBadge status={incident.status} />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <div className="h-1 w-16 overflow-hidden rounded-full bg-surface-3">
+                              <div
+                                className="h-full rounded-full bg-primary"
+                                style={{
+                                  width: `${Math.min(100, incident.confidence * 100)}%`,
+                                }}
+                              />
+                            </div>
+                            <span className="font-mono text-xs tabular-nums">
+                              {(incident.confidence * 100).toFixed(0)}%
+                            </span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                            Cam #{incident.camera_id}
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button asChild variant="outline" size="sm">
+                            <Link
+                              href={`/incidents/${incident.id}`}
+                              aria-label={`View incident ${incident.id}`}
+                            >
+                              <Eye className="h-4 w-4" aria-hidden="true" />
+                              View
+                            </Link>
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              Page {page} of {totalPages}
-              {data ? ` · ${data.total} total` : ""}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="text-xs text-muted-foreground">
+              {data && data.total > 0
+                ? `${(page - 1) * pageSize + 1}–${Math.min(page * pageSize, data.total)} of ${data.total}`
+                : "0 incidents"}
             </span>
-            <div className="flex gap-2">
+            <div className="flex items-center gap-2">
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
+                aria-label="Previous page"
               >
-                <ChevronLeft className="h-4 w-4" />
-                Previous
+                <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               </Button>
+              <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                {page} / {totalPages}
+              </span>
               <Button
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
+                aria-label="Next page"
               >
-                Next
-                <ChevronRight className="h-4 w-4" />
+                <ChevronRight className="h-4 w-4" aria-hidden="true" />
               </Button>
             </div>
           </div>

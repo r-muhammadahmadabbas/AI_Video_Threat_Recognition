@@ -8,6 +8,7 @@ import {
   Radio,
   ScanSearch,
   UploadCloud,
+  X,
 } from "lucide-react";
 import { api, apiErrorMessage } from "@/lib/api";
 import { DetectionResponse } from "@/types";
@@ -23,18 +24,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type Tab = "video" | "image" | "live";
-
-const tabs: {
-  id: Tab;
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-}[] = [
-  { id: "video", label: "Video Upload", icon: FileVideo },
-  { id: "image", label: "Image Upload", icon: FileImage },
-  { id: "live", label: "Live Stream", icon: Radio },
-];
 
 function useObjectUrl(file: File | null) {
   const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
@@ -51,6 +43,7 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
   const [result, setResult] = useState<DetectionResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const previewUrl = useObjectUrl(file);
 
@@ -61,6 +54,13 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
     setFile(selected);
     setResult(null);
     setError(null);
+  };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setDragging(false);
+    const dropped = event.dataTransfer.files?.[0];
+    if (dropped) handleSelect(dropped);
   };
 
   const handleAnalyze = async () => {
@@ -81,72 +81,115 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
   };
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-4">
-        <button
-          type="button"
-          onClick={() => inputRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-border bg-card px-6 py-10 text-center transition-colors hover:border-primary/50 hover:bg-accent/40"
-        >
-          <UploadCloud className="h-8 w-8 text-muted-foreground" />
-          <span className="text-sm font-medium">
-            {file ? file.name : `Choose a ${isVideo ? "video" : "image"} file`}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            {isVideo ? "MP4, AVI, MOV or WEBM · max 500MB" : "JPG, PNG or WEBP"}
-          </span>
-        </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={accept}
-          className="hidden"
-          onChange={(event) => handleSelect(event.target.files?.[0] ?? null)}
-        />
-
-        {file && previewUrl && (
-          <div className="overflow-hidden rounded-xl border border-border bg-black">
-            {isVideo ? (
-              <video
-                src={previewUrl}
-                controls
-                className="max-h-[420px] w-full"
-              />
-            ) : (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={previewUrl}
-                alt="Upload preview"
-                className="max-h-[420px] w-full object-contain"
-              />
-            )}
-          </div>
+    <div className="flex flex-col gap-5">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={`Choose a ${isVideo ? "video" : "image"} file`}
+        onClick={() => inputRef.current?.click()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            inputRef.current?.click();
+          }
+        }}
+        onDragOver={(event) => {
+          event.preventDefault();
+          setDragging(true);
+        }}
+        onDragLeave={() => setDragging(false)}
+        onDrop={handleDrop}
+        className={cn(
+          "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+          dragging
+            ? "border-primary bg-primary/10"
+            : "border-border-strong bg-surface-2/40 hover:border-primary/50 hover:bg-surface-3/40",
         )}
-
-        <Button
-          onClick={handleAnalyze}
-          disabled={!file || loading}
-          className="w-full sm:w-auto"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyzing... this can take a moment
-            </>
-          ) : (
-            <>
-              <ScanSearch className="h-4 w-4" />
-              Run Threat Analysis
-            </>
+      >
+        <UploadCloud
+          className={cn(
+            "h-8 w-8",
+            dragging ? "text-primary" : "text-muted-foreground",
           )}
-        </Button>
+          aria-hidden="true"
+        />
+        <span className="text-sm font-medium">
+          {file
+            ? file.name
+            : `Drop a ${isVideo ? "video" : "image"} here or click to browse`}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {isVideo
+            ? "MP4, AVI, MOV or WEBM · max 500MB"
+            : "JPG, PNG or WEBP · analyzed instantly"}
+        </span>
       </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept={accept}
+        className="hidden"
+        onChange={(event) => handleSelect(event.target.files?.[0] ?? null)}
+      />
+
+      {file && (
+        <div className="flex items-center gap-3 rounded-lg border border-border bg-surface-2 px-3 py-2">
+          <span className="min-w-0 flex-1 truncate text-sm">{file.name}</span>
+          <span className="shrink-0 font-mono text-xs tabular-nums text-muted-foreground">
+            {(file.size / 1024 / 1024).toFixed(1)} MB
+          </span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 shrink-0"
+            onClick={() => handleSelect(null)}
+            aria-label="Remove selected file"
+          >
+            <X className="h-3.5 w-3.5" aria-hidden="true" />
+          </Button>
+        </div>
+      )}
+
+      {file && previewUrl && (
+        <div className="overflow-hidden rounded-xl border border-border bg-black">
+          {isVideo ? (
+            <video src={previewUrl} controls className="max-h-[420px] w-full" />
+          ) : (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={previewUrl}
+              alt="Upload preview"
+              className="max-h-[420px] w-full object-contain"
+            />
+          )}
+        </div>
+      )}
+
+      <Button
+        onClick={handleAnalyze}
+        disabled={!file || loading}
+        className="w-full gap-2 sm:w-auto"
+      >
+        {loading ? (
+          <>
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+            Analyzing — this can take a moment
+          </>
+        ) : (
+          <>
+            <ScanSearch className="h-4 w-4" aria-hidden="true" />
+            Run threat analysis
+          </>
+        )}
+      </Button>
 
       {error && <ErrorState message={error} />}
 
       {result && (
         <div className="flex flex-col gap-3">
-          <h2 className="text-lg font-semibold">Analysis Report</h2>
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+            Analysis report
+          </h2>
           <AnalysisReport result={result} />
         </div>
       )}
@@ -154,58 +197,97 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
   );
 }
 
+const TAB_HEADERS: Record<Tab, { title: string; description: string }> = {
+  video: {
+    title: "Upload a recorded video",
+    description:
+      "The model scans sampled frames, applies every detection rule, and produces a categorized report with annotated evidence frames.",
+  },
+  image: {
+    title: "Upload a photo or frame",
+    description:
+      "Single images are analyzed immediately: every weapon, person and anomaly is identified with a confidence score.",
+  },
+  live: {
+    title: "Stream live from your phone",
+    description:
+      "Scan the QR code with a phone and record the scene live. The clip is analyzed the moment you stop.",
+  },
+};
+
 export default function DetectPage() {
   const [tab, setTab] = useState<Tab>("video");
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-bold">Threat Detection</h1>
+        <h1 className="text-xl font-semibold tracking-tight">
+          Threat detection
+        </h1>
         <p className="text-sm text-muted-foreground">
           Upload footage or stream live from a mobile device for instant
           analysis
         </p>
       </div>
 
-      <div className="flex w-full max-w-xl rounded-lg border border-border bg-card p-1">
-        {tabs.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            onClick={() => setTab(item.id)}
-            className={cn(
-              "flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              tab === item.id
-                ? "bg-primary text-primary-foreground"
-                : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            <item.icon className="h-4 w-4" />
-            {item.label}
-          </button>
-        ))}
-      </div>
+      <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)}>
+        <TabsList className="w-full max-w-xl">
+          <TabsTrigger value="video" className="flex-1 gap-2">
+            <FileVideo className="h-4 w-4" aria-hidden="true" />
+            Video upload
+          </TabsTrigger>
+          <TabsTrigger value="image" className="flex-1 gap-2">
+            <FileImage className="h-4 w-4" aria-hidden="true" />
+            Image upload
+          </TabsTrigger>
+          <TabsTrigger value="live" className="flex-1 gap-2">
+            <Radio className="h-4 w-4" aria-hidden="true" />
+            Live stream
+          </TabsTrigger>
+        </TabsList>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">
-            {tab === "video" && "Upload a recorded video"}
-            {tab === "image" && "Upload a photo or frame"}
-            {tab === "live" && "Stream live from your phone"}
-          </CardTitle>
-          <CardDescription>
-            {tab === "video" &&
-              "The model scans sampled frames, applies every detection rule, and produces a categorized report with annotated evidence frames."}
-            {tab === "image" &&
-              "Single images are analyzed immediately: every weapon, person and anomaly is identified with a confidence score."}
-            {tab === "live" &&
-              "Scan the QR code with a phone and record the scene live. The clip is analyzed the moment you stop."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {tab === "live" ? <LiveQrCard /> : <UploadPanel kind={tab} />}
-        </CardContent>
-      </Card>
+        <TabsContent value="video">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {TAB_HEADERS.video.title}
+              </CardTitle>
+              <CardDescription>{TAB_HEADERS.video.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UploadPanel kind="video" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="image">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {TAB_HEADERS.image.title}
+              </CardTitle>
+              <CardDescription>{TAB_HEADERS.image.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <UploadPanel kind="image" />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="live">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">
+                {TAB_HEADERS.live.title}
+              </CardTitle>
+              <CardDescription>{TAB_HEADERS.live.description}</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <LiveQrCard />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

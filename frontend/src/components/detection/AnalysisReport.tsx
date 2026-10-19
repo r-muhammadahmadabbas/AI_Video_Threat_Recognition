@@ -3,8 +3,9 @@
 import { useMemo, useState } from "react";
 import { Activity, Crosshair, Film, ShieldAlert, Timer } from "lucide-react";
 import { DetectionResponse } from "@/types";
-import { classInfo, ruleLabel, severityVariant } from "@/lib/labels";
+import { classInfo, ruleLabel } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
+import { SeverityBadge } from "@/components/status-badges";
 import { DetectionFrame } from "./DetectionFrame";
 import { DetectionTimeline } from "./DetectionTimeline";
 import { cn } from "@/lib/utils";
@@ -68,19 +69,19 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
       label: "Objects detected",
       value: result.detections.length,
       icon: Crosshair,
-      accent: "text-blue-500",
+      accent: "text-sev-low",
     },
     {
       label: "Threats",
       value: threats.length,
       icon: ShieldAlert,
-      accent: threats.length ? "text-red-500" : "text-muted-foreground",
+      accent: threats.length ? "text-sev-critical" : "text-muted-foreground",
     },
     {
       label: "Rule events",
       value: result.events.length,
       icon: Activity,
-      accent: result.events.length ? "text-amber-500" : "text-muted-foreground",
+      accent: result.events.length ? "text-sev-high" : "text-muted-foreground",
     },
   ];
 
@@ -90,11 +91,16 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
         {stats.map((stat) => (
           <div
             key={stat.label}
-            className="flex items-center gap-3 rounded-lg border border-border bg-card p-4"
+            className="flex items-center gap-3 rounded-lg border border-border bg-surface-1 p-4"
           >
-            <stat.icon className={cn("h-5 w-5", stat.accent)} />
+            <stat.icon
+              className={cn("h-5 w-5 shrink-0", stat.accent)}
+              aria-hidden="true"
+            />
             <div>
-              <div className="text-xl font-bold leading-none">{stat.value}</div>
+              <div className="text-xl font-semibold leading-none tabular-nums">
+                {stat.value}
+              </div>
               <div className="mt-1 text-xs text-muted-foreground">
                 {stat.label}
               </div>
@@ -104,18 +110,18 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
       </div>
 
       {weaponThreats.length > 0 && (
-        <div className="rounded-lg border border-red-500/40 bg-red-500/10 p-4">
-          <div className="flex items-center gap-2 font-semibold text-red-600">
-            <ShieldAlert className="h-5 w-5" />
+        <div className="rounded-lg border border-sev-critical/40 bg-sev-critical-bg p-4">
+          <div className="flex items-center gap-2 font-semibold text-sev-critical">
+            <ShieldAlert className="h-5 w-5" aria-hidden="true" />
             Weapon identified
           </div>
-          <ul className="mt-2 space-y-1 text-sm text-red-700">
+          <ul className="mt-2 space-y-1 text-sm text-sev-critical">
             {weaponThreats.map((detection, index) => {
               const info = classInfo(detection.class_name);
               return (
                 <li key={`${detection.timestamp}-${index}`}>
                   <span className="font-medium">{info.label}</span> detected at{" "}
-                  <span className="font-mono">
+                  <span className="font-mono tabular-nums">
                     t={detection.timestamp.toFixed(1)}s
                   </span>{" "}
                   (confidence {(detection.confidence * 100).toFixed(1)}%)
@@ -127,9 +133,12 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
       )}
 
       {result.detections.length > 0 && (
-        <div className="rounded-lg border border-border bg-card p-4">
+        <div className="rounded-lg border border-border bg-surface-1 p-4">
           <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
-            <Timer className="h-4 w-4 text-muted-foreground" />
+            <Timer
+              className="h-4 w-4 text-muted-foreground"
+              aria-hidden="true"
+            />
             Detection timeline
           </div>
           <DetectionTimeline
@@ -141,19 +150,27 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
       )}
 
       {findings.length > 0 && (
-        <div className="rounded-lg border border-border bg-card">
+        <div className="rounded-lg border border-border bg-surface-1">
           <div className="border-b border-border px-4 py-3 text-sm font-semibold">
             Findings summary
           </div>
           <ul className="divide-y divide-border">
             {findings.map((finding) => {
               const info = classInfo(finding.class_name);
+              const FindingIcon = info.icon;
               return (
                 <li
                   key={finding.class_name}
                   className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
+                    <FindingIcon
+                      className={cn(
+                        "h-5 w-5 shrink-0",
+                        info.threat ? "text-sev-high" : "text-muted-foreground",
+                      )}
+                      aria-hidden="true"
+                    />
                     <Badge variant={info.threat ? "destructive" : "secondary"}>
                       {info.category}
                     </Badge>
@@ -183,7 +200,7 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
       )}
 
       {result.events.length > 0 && (
-        <div className="rounded-lg border border-border bg-card">
+        <div className="rounded-lg border border-border bg-surface-1">
           <div className="border-b border-border px-4 py-3 text-sm font-semibold">
             Rule triggers
           </div>
@@ -194,12 +211,7 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
                 className="flex flex-wrap items-center justify-between gap-2 px-4 py-3"
               >
                 <div className="flex items-center gap-3">
-                  <Badge
-                    variant={severityVariant(event.severity)}
-                    className="capitalize"
-                  >
-                    {event.severity}
-                  </Badge>
+                  <SeverityBadge severity={event.severity} />
                   <div>
                     <div className="text-sm font-medium">
                       {ruleLabel(event.rule)}

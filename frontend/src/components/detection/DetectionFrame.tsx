@@ -20,7 +20,7 @@ export function DetectionFrame({ detection }: DetectionFrameProps) {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative group aspect-[4/3] overflow-hidden rounded-xl border border-border bg-background">
+      <div className="group relative aspect-[4/3] overflow-hidden rounded-lg border border-border-strong bg-surface-2">
         {detection.frame_image ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -34,7 +34,7 @@ export function DetectionFrame({ detection }: DetectionFrameProps) {
             No frame available
           </div>
         )}
-        <div className="absolute left-2 top-2 rounded bg-black/60 px-2 py-1 font-mono text-xs text-white">
+        <div className="absolute left-2 top-2 rounded-md bg-black/70 px-2 py-1 font-mono text-xs tabular-nums text-white backdrop-blur-sm">
           t={detection.timestamp}s
         </div>
       </div>

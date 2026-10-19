@@ -153,8 +153,11 @@ function CaptureScreen() {
               </div>
             )}
             {recording && (
-              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-red-600 px-3 py-1 text-xs font-semibold text-white">
-                <Circle className="h-3 w-3 animate-pulse fill-current" />
+              <div className="absolute left-3 top-3 flex items-center gap-2 rounded-full bg-sev-critical-solid px-3 py-1 text-xs font-semibold text-white">
+                <Circle
+                  className="h-3 w-3 animate-pulse fill-current"
+                  aria-hidden="true"
+                />
                 REC {mm}:{ss}
               </div>
             )}
@@ -163,7 +166,10 @@ function CaptureScreen() {
           <div className="mt-4 flex items-center justify-center gap-3">
             {cameraOn && !recording && (
               <Button onClick={startRecording} disabled={uploading}>
-                <Circle className="h-4 w-4 fill-current text-red-500" />
+                <Circle
+                  className="h-4 w-4 fill-current text-sev-critical"
+                  aria-hidden="true"
+                />
                 Start Recording
               </Button>
             )}

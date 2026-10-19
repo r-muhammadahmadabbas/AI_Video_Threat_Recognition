@@ -6,6 +6,8 @@ import {
   ArrowLeft,
   CheckCircle,
   Download,
+  FileText,
+  Image as ImageIcon,
   Loader2,
   Video,
   XCircle,
@@ -22,6 +24,24 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useState } from "react";
+import { eventInfo, ruleLabel, severityInfo } from "@/lib/labels";
+import { cn } from "@/lib/utils";
+
+function ConfidenceMeter({ value }: { value: number }) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-surface-3">
+        <div
+          className="h-full rounded-full bg-primary"
+          style={{ width: `${Math.min(100, value * 100)}%` }}
+        />
+      </div>
+      <span className="font-mono text-sm tabular-nums">
+        {(value * 100).toFixed(1)}%
+      </span>
+    </div>
+  );
+}
 
 function EvidenceItem({ evidence }: { evidence: Evidence }) {
   const [downloading, setDownloading] = useState(false);
@@ -50,50 +70,52 @@ function EvidenceItem({ evidence }: { evidence: Evidence }) {
   };
 
   return (
-    <div className="rounded-lg border border-border p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="rounded bg-muted px-2 py-0.5 text-xs font-medium capitalize">
-          {evidence.evidence_type}
+    <div className="overflow-hidden rounded-lg border border-border bg-surface-2/40">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
+        <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+          {isVideo ? (
+            <Video className="h-3.5 w-3.5" aria-hidden="true" />
+          ) : (
+            <ImageIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          <span className="font-medium capitalize">
+            {evidence.evidence_type}
+          </span>
+          {evidence.duration_seconds != null && (
+            <span>· {evidence.duration_seconds.toFixed(1)}s</span>
+          )}
+          {evidence.size_bytes != null && (
+            <span>· {(evidence.size_bytes / 1024 / 1024).toFixed(2)} MB</span>
+          )}
         </span>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={download}
-            disabled={downloading}
-          >
-            {downloading ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Download className="h-4 w-4" />
-            )}
-            Download
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1.5"
+          onClick={download}
+          disabled={downloading}
+        >
+          {downloading ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          ) : (
+            <Download className="h-3.5 w-3.5" aria-hidden="true" />
+          )}
+          Download
+        </Button>
       </div>
-      {isVideo ? (
-        objectUrl ? (
-          <video
-            src={objectUrl}
-            controls
-            className="w-full rounded-md border border-border"
-          />
+      <div className="bg-black">
+        {isVideo ? (
+          objectUrl ? (
+            <video src={objectUrl} controls className="w-full" />
+          ) : (
+            <Skeleton className="aspect-video w-full rounded-none" />
+          )
         ) : (
-          <Skeleton className="aspect-video w-full" />
-        )
-      ) : (
-        <AuthenticatedImage
-          src={api.getEvidenceThumbnail(evidence.id)}
-          alt="Evidence snapshot"
-          className="aspect-video w-full object-cover"
-        />
-      )}
-      <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
-        {evidence.duration_seconds != null && (
-          <span>Duration: {evidence.duration_seconds.toFixed(1)}s</span>
-        )}
-        {evidence.size_bytes != null && (
-          <span>Size: {(evidence.size_bytes / 1024 / 1024).toFixed(2)} MB</span>
+          <AuthenticatedImage
+            src={api.getEvidenceThumbnail(evidence.id)}
+            alt="Evidence snapshot"
+            className="aspect-video w-full object-cover"
+          />
         )}
       </div>
     </div>
@@ -165,15 +187,10 @@ export default function IncidentDetailPage() {
   const canAct =
     incident.status === "detected" || incident.status === "pending_review";
 
+  const EventIcon = eventInfo(incident.event_type).icon;
+  const SevIcon = severityInfo(incident.severity).icon;
+
   const details: { label: string; value: React.ReactNode }[] = [
-    {
-      label: "Event type",
-      value: (
-        <span className="capitalize">
-          {incident.event_type.replace(/_/g, " ")}
-        </span>
-      ),
-    },
     {
       label: "Severity",
       value: <SeverityBadge severity={incident.severity} />,
@@ -181,20 +198,35 @@ export default function IncidentDetailPage() {
     { label: "Status", value: <StatusBadge status={incident.status} /> },
     {
       label: "Confidence",
+      value: <ConfidenceMeter value={incident.confidence} />,
+    },
+    {
+      label: "Camera",
       value: (
-        <span className="font-mono">
-          {(incident.confidence * 100).toFixed(1)}%
+        <span className="rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">
+          Cam #{incident.camera_id}
         </span>
       ),
     },
-    { label: "Camera", value: `Camera #${incident.camera_id}` },
     {
       label: "Zone",
-      value: incident.zone_id ? `Zone #${incident.zone_id}` : "N/A",
+      value: incident.zone_id ? (
+        <span className="rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">
+          Zone #{incident.zone_id}
+        </span>
+      ) : (
+        <span className="text-sm text-muted-foreground">—</span>
+      ),
     },
     {
       label: "Rule",
-      value: incident.rule_id ? `Rule #${incident.rule_id}` : "N/A",
+      value: incident.rule_id ? (
+        <span className="rounded-md border border-border bg-surface-2 px-2 py-0.5 font-mono text-xs">
+          Rule #{incident.rule_id}
+        </span>
+      ) : (
+        <span className="text-sm text-muted-foreground">—</span>
+      ),
     },
     {
       label: "Model version",
@@ -224,30 +256,60 @@ export default function IncidentDetailPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <Button asChild variant="ghost" size="sm" className="mb-2 -ml-2">
-            <Link href="/incidents">
-              <ArrowLeft className="h-4 w-4" />
-              Incidents
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex min-w-0 items-start gap-2">
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="-ml-2 shrink-0"
+          >
+            <Link href="/incidents" aria-label="Back to incidents">
+              <ArrowLeft className="h-4 w-4" aria-hidden="true" />
             </Link>
           </Button>
-          <h1 className="text-2xl font-bold">Incident #{incident.id}</h1>
-          <p className="text-sm capitalize text-muted-foreground">
-            {incident.event_type.replace(/_/g, " ")} ·{" "}
-            {new Date(incident.first_seen_at).toLocaleString()}
-          </p>
+          <div className="min-w-0">
+            <h1 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+              <SevIcon
+                className={cn(
+                  "h-5 w-5 shrink-0",
+                  incident.severity === "critical" ||
+                    incident.severity === "very_high"
+                    ? "text-sev-critical"
+                    : incident.severity === "high"
+                      ? "text-sev-high"
+                      : incident.severity === "medium"
+                        ? "text-sev-medium"
+                        : "text-sev-low",
+                )}
+                aria-hidden="true"
+              />
+              Incident #{incident.id}
+            </h1>
+            <p className="mt-0.5 flex items-center gap-1.5 text-sm text-muted-foreground">
+              <EventIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              {ruleLabel(incident.event_type)} ·{" "}
+              {new Date(incident.first_seen_at).toLocaleString()}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2">
           <StatusBadge status={incident.status} />
           <SeverityBadge severity={incident.severity} />
           {canAct && (
             <>
-              <Button onClick={handleVerify} disabled={actionPending !== null}>
+              <Button
+                onClick={handleVerify}
+                disabled={actionPending !== null}
+                className="gap-1.5"
+              >
                 {actionPending === "verify" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <CheckCircle className="h-4 w-4" />
+                  <CheckCircle className="h-4 w-4" aria-hidden="true" />
                 )}
                 Verify
               </Button>
@@ -255,11 +317,15 @@ export default function IncidentDetailPage() {
                 variant="outline"
                 onClick={handleDismiss}
                 disabled={actionPending !== null}
+                className="gap-1.5"
               >
                 {actionPending === "dismiss" ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <Loader2
+                    className="h-4 w-4 animate-spin"
+                    aria-hidden="true"
+                  />
                 ) : (
-                  <XCircle className="h-4 w-4" />
+                  <XCircle className="h-4 w-4" aria-hidden="true" />
                 )}
                 Dismiss
               </Button>
@@ -268,10 +334,12 @@ export default function IncidentDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Evidence</CardTitle>
+            <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground">
+              Evidence
+            </CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
             {!evidence || evidence.items.length === 0 ? (
@@ -288,45 +356,57 @@ export default function IncidentDetailPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Details</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
-              {details.map((detail) => (
-                <div key={detail.label}>
-                  <p className="text-xs text-muted-foreground">
-                    {detail.label}
-                  </p>
-                  <p className="mt-0.5 text-sm">{detail.value}</p>
-                </div>
-              ))}
-            </div>
-
-            {incident.verified_at && (
-              <div className="border-t border-border pt-3">
-                <p className="text-xs text-muted-foreground">
-                  {incident.status === "verified" ? "Verified" : "Dismissed"} by
-                </p>
-                <p className="text-sm">
-                  User #{incident.verified_by_id} at{" "}
-                  {new Date(incident.verified_at).toLocaleString()}
-                </p>
+        <div className="flex flex-col gap-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-sm uppercase tracking-wider text-muted-foreground">
+                Details
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                {details.map((detail) => (
+                  <div key={detail.label}>
+                    <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                      {detail.label}
+                    </p>
+                    <p className="mt-1 text-sm">{detail.value}</p>
+                  </div>
+                ))}
               </div>
-            )}
 
-            {incident.metadata_json &&
-              Object.keys(incident.metadata_json).length > 0 && (
+              {incident.verified_at && (
                 <div className="border-t border-border pt-3">
-                  <p className="mb-1 text-xs text-muted-foreground">Metadata</p>
-                  <pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 text-xs">
-                    {JSON.stringify(incident.metadata_json, null, 2)}
-                  </pre>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                    {incident.status === "verified" ? "Verified" : "Dismissed"}{" "}
+                    by
+                  </p>
+                  <p className="mt-1 text-sm">
+                    User #{incident.verified_by_id} at{" "}
+                    {new Date(incident.verified_at).toLocaleString()}
+                  </p>
                 </div>
               )}
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+
+          {incident.metadata_json &&
+            Object.keys(incident.metadata_json).length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-sm uppercase tracking-wider text-muted-foreground">
+                    <FileText className="h-3.5 w-3.5" aria-hidden="true" />
+                    Metadata
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <pre className="max-h-64 overflow-auto rounded-md border border-border bg-surface-2 p-3 font-mono text-xs">
+                    {JSON.stringify(incident.metadata_json, null, 2)}
+                  </pre>
+                </CardContent>
+              </Card>
+            )}
+        </div>
       </div>
     </div>
   );
