@@ -21,6 +21,13 @@ function probeWebGL(): boolean {
   }
 }
 
+let webglAvailable: boolean | null = null;
+
+export function isWebGLAvailable(): boolean {
+  if (webglAvailable === null) webglAvailable = probeWebGL();
+  return webglAvailable;
+}
+
 function detectTier(): PerfTier {
   const stored = window.localStorage.getItem(STORAGE_KEY);
   if (stored === "full" || stored === "lite") return stored;

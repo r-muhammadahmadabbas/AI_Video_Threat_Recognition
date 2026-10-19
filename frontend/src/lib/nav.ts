@@ -2,6 +2,7 @@ import {
   AlertTriangle,
   FileText,
   LayoutDashboard,
+  Map as MapIcon,
   MapPin,
   Radio,
   ScanSearch,
@@ -29,6 +30,13 @@ export const NAV_ITEMS: NavItem[] = [
     mobile: true,
   },
   { href: "/live", label: "Live", icon: Radio, hotkey: "l", mobile: true },
+  {
+    href: "/site",
+    label: "Site",
+    icon: MapIcon,
+    hotkey: "s",
+    mobile: false,
+  },
   {
     href: "/detect",
     label: "Detect",

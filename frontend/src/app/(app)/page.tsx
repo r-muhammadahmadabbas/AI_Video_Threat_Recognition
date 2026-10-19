@@ -1,56 +1,83 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useEffect, useMemo } from "react";
 import {
   AlertTriangle,
-  CheckCircle,
+  Clock,
+  MapPin,
   Radio,
   ScanSearch,
   ShieldAlert,
   Video,
-  Wifi,
-  WifiOff,
 } from "lucide-react";
 import { api } from "@/lib/api";
-import {
-  Camera,
-  DashboardStats,
-  IncidentListResponse,
-  Paginated,
-} from "@/types";
+import type { Camera, DashboardStats, Paginated } from "@/types";
 import { useFetch } from "@/hooks/use-fetch";
+import { useShell } from "@/components/shell/shell-context";
+import { eventInfo, ruleLabel } from "@/lib/labels";
+import { timeAgo } from "@/lib/time";
 import { SeverityBadge, StatusBadge } from "@/components/status-badges";
 import { EmptyState, ErrorState } from "@/components/empty-state";
+import { KpiTile } from "@/components/dashboard/kpi-tile";
+import { SiteTwinWidget } from "@/components/dashboard/site-twin-widget";
+import {
+  buildSparkline,
+  useIncidentSeries,
+} from "@/components/charts/use-incident-series";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 
-function StatCard({
-  title,
-  value,
-  icon: Icon,
-  accent,
-}: {
-  title: string;
-  value: number;
-  icon: React.ComponentType<{ className?: string }>;
-  accent: string;
-}) {
-  return (
-    <Card>
-      <CardContent className="flex items-center justify-between p-6">
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className="mt-1 text-3xl font-bold">{value}</p>
-        </div>
-        <div className={`rounded-lg bg-accent/60 p-3 ${accent}`}>
-          <Icon className="h-6 w-6" />
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+const TrendChart = dynamic(
+  () =>
+    import("@/components/charts/trend-chart").then(
+      (module) => module.TrendChart,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <Card className="h-full">
+        <CardContent className="p-5">
+          <Skeleton className="h-72" />
+        </CardContent>
+      </Card>
+    ),
+  },
+);
+
+const SeverityDonut = dynamic(
+  () =>
+    import("@/components/charts/severity-donut").then(
+      (module) => module.SeverityDonut,
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <Card className="h-full">
+        <CardContent className="p-5">
+          <Skeleton className="h-56" />
+        </CardContent>
+      </Card>
+    ),
+  },
+);
+
+const ClassBars = dynamic(
+  () =>
+    import("@/components/charts/class-bars").then((module) => module.ClassBars),
+  {
+    ssr: false,
+    loading: () => (
+      <Card className="h-full">
+        <CardContent className="p-5">
+          <Skeleton className="h-56" />
+        </CardContent>
+      </Card>
+    ),
+  },
+);
 
 export default function DashboardPage() {
   const {
@@ -60,181 +87,311 @@ export default function DashboardPage() {
     refetch,
   } = useFetch<DashboardStats>(() => api.getDashboardStats(), []);
 
-  const [cameras, setCameras] = useState<Camera[]>([]);
-  const [incidents, setIncidents] = useState<IncidentListResponse | null>(null);
+  const {
+    data: camerasData,
+    loading: camerasLoading,
+    error: camerasError,
+    refetch: refetchCameras,
+  } = useFetch<Paginated<Camera>>(() => api.getCameras({ page_size: 100 }), []);
+
+  const series = useIncidentSeries();
+  const { refetch: refetchSeries } = series;
+  const { incidents: feedIncidents } = useShell();
 
   useEffect(() => {
-    api
-      .getCameras({ page_size: 5 })
-      .then((data: Paginated<Camera>) => setCameras(data.items ?? []))
-      .catch(() => setCameras([]));
-    api
-      .getIncidents({ page_size: 5 })
-      .then((data: IncidentListResponse) => setIncidents(data))
-      .catch(() => setIncidents(null));
-  }, []);
+    const timer = window.setInterval(() => {
+      refetch();
+      refetchCameras();
+      refetchSeries();
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, [refetch, refetchCameras, refetchSeries]);
 
-  useEffect(() => {
-    const interval = setInterval(refetch, 30000);
-    return () => clearInterval(interval);
-  }, [refetch]);
+  const cameras = useMemo(() => {
+    const items = camerasData?.items ?? [];
+    return [...items].sort((a, b) => {
+      const aOnline = a.status === "online" ? 1 : 0;
+      const bOnline = b.status === "online" ? 1 : 0;
+      if (aOnline !== bOnline) return aOnline - bOnline;
+      return a.name.localeCompare(b.name);
+    });
+  }, [camerasData]);
+
+  const cameraNames = useMemo(() => {
+    const names = new Map<number, string>();
+    for (const camera of cameras) names.set(camera.id, camera.name);
+    return names;
+  }, [cameras]);
+
+  const spark = useMemo(
+    () => buildSparkline(series.incidents),
+    [series.incidents],
+  );
+
+  const lastIncident = series.incidents[0];
+  const pending = stats?.pending_incidents ?? 0;
+  const caption =
+    series.total > series.incidents.length
+      ? `Based on the latest ${series.incidents.length} of ${series.total} incidents`
+      : `Based on the latest ${series.incidents.length} incidents`;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <h1 className="text-xl font-semibold tracking-tight">Dashboard</h1>
           <p className="text-sm text-muted-foreground">
             System overview and key metrics
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button asChild variant="outline">
+        <div className="flex flex-wrap gap-2">
+          <Button asChild variant="outline" className="gap-1.5">
             <Link href="/live">
-              <Radio className="h-4 w-4" />
-              Live Stream
+              <Radio className="h-4 w-4" aria-hidden="true" />
+              Live stream
             </Link>
           </Button>
-          <Button asChild>
+          <Button asChild variant="outline" className="gap-1.5">
+            <Link href="/site">
+              <MapPin className="h-4 w-4" aria-hidden="true" />
+              Site map
+            </Link>
+          </Button>
+          <Button asChild className="gap-1.5">
             <Link href="/detect">
-              <ScanSearch className="h-4 w-4" />
-              New Detection
+              <ScanSearch className="h-4 w-4" aria-hidden="true" />
+              New detection
             </Link>
           </Button>
         </div>
       </div>
 
-      {error && <ErrorState message={error} />}
+      {error ? <ErrorState message={error} /> : null}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        {loading ? (
-          Array.from({ length: 5 }).map((_, index) => (
-            <Skeleton key={index} className="h-28" />
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
+        {loading && !stats ? (
+          Array.from({ length: 6 }).map((_, index) => (
+            <Skeleton key={index} className="h-32" />
           ))
         ) : (
           <>
-            <StatCard
-              title="Total Cameras"
-              value={stats?.total_cameras ?? 0}
+            <KpiTile
+              label="Cameras"
               icon={Video}
-              accent="text-blue-500"
+              valueText={`${stats?.online_cameras ?? 0}/${stats?.total_cameras ?? 0}`}
+              ring={{
+                value: stats?.online_cameras ?? 0,
+                total: stats?.total_cameras ?? 0,
+              }}
+              href="/cameras"
+              footer={
+                <p className="text-xs text-muted-foreground">online / total</p>
+              }
             />
-            <StatCard
-              title="Online Cameras"
-              value={stats?.online_cameras ?? 0}
-              icon={CheckCircle}
-              accent="text-green-500"
+            <KpiTile
+              label="Pending"
+              icon={Clock}
+              value={pending}
+              featured
+              tone={pending > 0 ? "critical" : "ok"}
+              allClear={pending === 0}
+              href="/incidents"
+              footer={
+                pending === 0 && lastIncident ? (
+                  <p className="text-xs text-muted-foreground">
+                    Last incident {timeAgo(lastIncident.first_seen_at)}
+                  </p>
+                ) : pending > 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    Awaiting review
+                  </p>
+                ) : null
+              }
             />
-            <StatCard
-              title="Total Incidents"
-              value={stats?.total_incidents ?? 0}
-              icon={AlertTriangle}
-              accent="text-amber-500"
-            />
-            <StatCard
-              title="Pending Review"
-              value={stats?.pending_incidents ?? 0}
-              icon={ScanSearch}
-              accent="text-blue-500"
-            />
-            <StatCard
-              title="Very High Risk"
-              value={stats?.very_high_risk_incidents ?? 0}
+            <KpiTile
+              label="High risk"
               icon={ShieldAlert}
-              accent="text-red-500"
+              value={stats?.very_high_risk_incidents ?? 0}
+              tone="warning"
+              href="/incidents"
+              footer={
+                <p className="text-xs text-muted-foreground">
+                  critical or high, open
+                </p>
+              }
+            />
+            <KpiTile
+              label="Last 24h"
+              icon={AlertTriangle}
+              value={stats?.incidents_last_24h ?? 0}
+              spark={spark}
+              footer={
+                <p className="text-xs text-muted-foreground">new incidents</p>
+              }
+            />
+            <KpiTile
+              label="Verified"
+              icon={ShieldAlert}
+              value={stats?.verified_incidents ?? 0}
+              tone="ok"
+              footer={<p className="text-xs text-muted-foreground">all time</p>}
+            />
+            <KpiTile
+              label="Dismissed"
+              icon={AlertTriangle}
+              value={stats?.dismissed_incidents ?? 0}
+              footer={<p className="text-xs text-muted-foreground">all time</p>}
             />
           </>
         )}
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Cameras</CardTitle>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/cameras">View all</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {cameras.length === 0 ? (
-              <EmptyState
-                title="No cameras configured"
-                description="Add a camera to start monitoring zones and rules."
-                icon={Video}
-              />
-            ) : (
-              <ul className="divide-y divide-border">
-                {cameras.map((camera) => {
-                  const online = camera.status === "online";
-                  return (
-                    <li
-                      key={camera.id}
-                      className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"
-                    >
-                      {online ? (
-                        <Wifi className="h-4 w-4 text-green-500" />
-                      ) : (
-                        <WifiOff className="h-4 w-4 text-red-500" />
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium">
-                          {camera.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {camera.source_type?.toUpperCase()} ·{" "}
-                          {online ? "Online" : "Offline"}
-                        </p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <TrendChart
+            incidents={series.incidents}
+            loading={series.loading}
+            error={series.error}
+            onRetry={series.refetch}
+            caption={caption}
+          />
+        </div>
+        <div className="lg:col-span-4">
+          <SiteTwinWidget cameras={cameras} incidents={feedIncidents} />
+        </div>
+        <div className="lg:col-span-4">
+          <SeverityDonut
+            incidents={series.incidents}
+            loading={series.loading}
+            error={series.error}
+            onRetry={series.refetch}
+          />
+        </div>
+        <div className="lg:col-span-4">
+          <ClassBars
+            incidents={series.incidents}
+            loading={series.loading}
+            error={series.error}
+            onRetry={series.refetch}
+          />
+        </div>
+        <div className="lg:col-span-4">
+          <Card className="h-full">
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base">Camera health</CardTitle>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/cameras">View all</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {camerasError ? (
+                <ErrorState message={camerasError} />
+              ) : camerasLoading && cameras.length === 0 ? (
+                <div className="flex flex-col gap-2">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Skeleton key={index} className="h-9" />
+                  ))}
+                </div>
+              ) : cameras.length === 0 ? (
+                <EmptyState
+                  title="No cameras configured"
+                  description="Add a camera to start monitoring zones and rules."
+                  icon={Video}
+                />
+              ) : (
+                <ul className="divide-y divide-border">
+                  {cameras.slice(0, 8).map((camera) => {
+                    const isOnline = camera.status === "online";
+                    return (
+                      <li
+                        key={camera.id}
+                        className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0"
+                      >
+                        <span
+                          className={`h-2 w-2 shrink-0 rounded-full ${
+                            isOnline ? "bg-ok" : "bg-muted-foreground/40"
+                          }`}
+                          aria-hidden="true"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm">{camera.name}</p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {isOnline ? "Online" : "Offline"}
+                            {camera.inference_enabled
+                              ? ` · inference ${camera.inference_fps ?? "—"} fps`
+                              : " · inference off"}
+                          </p>
+                        </div>
+                        <span className="text-[11px] uppercase text-muted-foreground">
+                          {camera.source_type}
+                        </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between pb-3">
-            <CardTitle className="text-base">Recent Incidents</CardTitle>
-            <Button asChild variant="ghost" size="sm">
-              <Link href="/incidents">View all</Link>
-            </Button>
-          </CardHeader>
-          <CardContent>
-            {!incidents || incidents.items.length === 0 ? (
-              <EmptyState
-                title="No incidents yet"
-                description="Detected threats will appear here for review."
-                icon={AlertTriangle}
-              />
-            ) : (
-              <ul className="divide-y divide-border">
-                {incidents.items.map((incident) => (
-                  <li
-                    key={incident.id}
-                    className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0"
-                  >
-                    <Link
-                      href={`/incidents/${incident.id}`}
-                      className="min-w-0 flex-1"
-                    >
-                      <p className="truncate text-sm font-medium capitalize">
-                        {incident.event_type.replace(/_/g, " ")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(incident.first_seen_at).toLocaleString()}
-                      </p>
-                    </Link>
-                    <div className="flex shrink-0 items-center gap-2">
-                      <SeverityBadge severity={incident.severity} />
-                      <StatusBadge status={incident.status} />
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </CardContent>
-        </Card>
+        <div className="lg:col-span-12">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-3">
+              <CardTitle className="text-base">Live incident feed</CardTitle>
+              <Button asChild variant="ghost" size="sm">
+                <Link href="/incidents">View all</Link>
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {series.loading && series.incidents.length === 0 ? (
+                <div className="flex flex-col gap-2">
+                  {Array.from({ length: 6 }).map((_, index) => (
+                    <Skeleton key={index} className="h-11" />
+                  ))}
+                </div>
+              ) : series.incidents.length === 0 ? (
+                <EmptyState
+                  title="No incidents yet"
+                  description="Detected threats will appear here for review."
+                  icon={AlertTriangle}
+                />
+              ) : (
+                <ul className="divide-y divide-border">
+                  {series.incidents.slice(0, 8).map((incident) => {
+                    const Icon = eventInfo(incident.event_type).icon;
+                    return (
+                      <li key={incident.id}>
+                        <Link
+                          href={`/incidents/${incident.id}`}
+                          className="flex items-center gap-3 py-2.5 transition-colors hover:bg-surface-2/60"
+                        >
+                          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-border bg-surface-2 text-muted-foreground">
+                            <Icon className="h-4 w-4" aria-hidden="true" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm">
+                              {ruleLabel(incident.event_type)}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {cameraNames.get(incident.camera_id) ??
+                                `Camera #${incident.camera_id}`}
+                              {" · "}
+                              {timeAgo(incident.first_seen_at)}
+                            </p>
+                          </div>
+                          <div className="flex shrink-0 items-center gap-2">
+                            <SeverityBadge severity={incident.severity} />
+                            <StatusBadge status={incident.status} />
+                          </div>
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );

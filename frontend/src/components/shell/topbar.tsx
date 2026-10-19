@@ -26,9 +26,9 @@ export function Topbar() {
 
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur md:px-6">
-      <h1 className="truncate text-sm font-semibold tracking-tight">
+      <p className="truncate text-sm font-semibold tracking-tight">
         {pageTitle(pathname)}
-      </h1>
+      </p>
       <div className="ml-auto flex items-center gap-2">
         <StatusPill />
         <span className="hidden select-none font-mono text-xs tabular-nums text-muted-foreground lg:block">

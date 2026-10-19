@@ -251,3 +251,17 @@
 [data-slot="dropdown-content"][data-state="open"] {
   animation: pop-in 140ms var(--ease-out-expo);
 }
+
+/* Site Twin 2D map pings */
+@keyframes site-ping {
+  0% { transform: scale(0.6); opacity: 0.8; }
+  100% { transform: scale(3.2); opacity: 0; }
+}
+.site-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: site-ping 3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .site-ping { animation: none; opacity: 0.8; }
+}

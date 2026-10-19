@@ -89,6 +89,7 @@ export function Hotkeys() {
     { keys: "Ctrl K", label: "Open command palette" },
     { keys: "G then D", label: "Go to Dashboard" },
     { keys: "G then L", label: "Go to Live stream" },
+    { keys: "G then S", label: "Go to Site Twin" },
     { keys: "G then T", label: "Go to Detect" },
     { keys: "G then I", label: "Go to Incidents" },
     { keys: "G then C", label: "Go to Cameras" },
