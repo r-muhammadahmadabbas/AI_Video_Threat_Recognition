@@ -52,6 +52,11 @@ UPLOAD_ZONE_ID = "upload-full-frame"
 #: 0.43 precision, versus 0.25 which only traded precision for no recall gain.
 FALL_CONFIDENCE = 0.40
 
+#: Consecutive violence-model hits required before an event opens. A single
+#: frame of a fast movement is not a fight; two hits at the upload cadence
+#: (~1 Hz for this model) cut false alarms sharply on non-fight footage.
+VIOLENCE_PERSISTENCE = 2
+
 
 @dataclass
 class RuleEvent:
@@ -161,7 +166,8 @@ class DetectionPipeline:
         self._person_down_config = PersonDownConfig()
         self._engine: RuleEngine | None = None
         self._last_timestamp: float | None = None
-        self._violence_last_frame = False
+        self._violence_streak = 0
+        self._violence_active = False
         self.events: list[RuleEvent] = []
 
     def reset_session(self) -> None:
@@ -172,7 +178,8 @@ class DetectionPipeline:
         # re-resolved for it rather than kept at the previous clip's resolution.
         self._engine = None
         self._last_timestamp = None
-        self._violence_last_frame = False
+        self._violence_streak = 0
+        self._violence_active = False
         self.events.clear()
 
     def process_frame(
@@ -192,23 +199,34 @@ class DetectionPipeline:
         triggers = self._engine_for(frame).process(snapshot.tracked, timestamp, dt)
         self._record_triggers(triggers)
 
-        # Violence is a per-frame model output, not a temporal rule, so emit it
-        # on the rising edge only; otherwise every processed frame in a fight
-        # would become another incident.
-        if analysis.violence and not self._violence_last_frame:
-            self.events.append(
-                RuleEvent(
-                    rule="violence_detected",
-                    severity="high",
-                    timestamp=timestamp,
-                    tracker_ids=[t.tracker_id for t in snapshot.tracked],
-                    details={
-                        "event": "violence_detected",
-                        "source": "violence_model",
-                    },
-                )
+        # Violence is a per-frame model output, not a temporal rule. Require
+        # persistence across model evaluations, then emit on the rising edge
+        # only; otherwise every processed frame in a fight becomes a new
+        # incident. Frames where the model did not run leave the streak alone.
+        if analysis.violence_checked:
+            self._violence_streak = (
+                self._violence_streak + 1 if analysis.violence else 0
             )
-        self._violence_last_frame = analysis.violence
+            if (
+                self._violence_streak >= VIOLENCE_PERSISTENCE
+                and not self._violence_active
+            ):
+                self._violence_active = True
+                self.events.append(
+                    RuleEvent(
+                        rule="violence_detected",
+                        severity="high",
+                        timestamp=timestamp,
+                        tracker_ids=[t.tracker_id for t in snapshot.tracked],
+                        details={
+                            "event": "violence_detected",
+                            "source": "violence_model",
+                            "consecutive_frames": self._violence_streak,
+                        },
+                    )
+                )
+            if self._violence_streak == 0:
+                self._violence_active = False
 
         detections = self._detections(snapshot, analysis, timestamp)
         annotated = self._annotate(frame, snapshot, analysis)

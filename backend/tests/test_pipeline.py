@@ -35,6 +35,7 @@ class FakeAnalyzer:
             persons=list(self.persons),
             weapons=list(self.weapons),
             violence=self.violence,
+            violence_checked=True,
             pose_keypoints=self.pose,
         )
 
@@ -132,12 +133,21 @@ class TestRuleEvents:
 
         analyzer.violence = True
         pipeline.process_frame(FRAME, 4.0)
+        pipeline.process_frame(FRAME, 5.0)
 
         violence_events = [
             e for e in pipeline.events if e.rule == "violence_detected"
         ]
         assert len(violence_events) == 2
         assert violence_events[0].tracker_ids == [1]
+
+    def test_single_frame_violence_hit_is_ignored(self, pipeline, analyzer):
+        analyzer.violence = True
+        pipeline.process_frame(FRAME, 0.0)
+        analyzer.violence = False
+        pipeline.process_frame(FRAME, 1.0)
+
+        assert not [e for e in pipeline.events if e.rule == "violence_detected"]
 
 
 class TestSessionReset:

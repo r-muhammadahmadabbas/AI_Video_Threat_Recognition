@@ -9,14 +9,14 @@
     "duration_seconds": 2000.0
   },
   "metrics": {
-    "true_positives": 190,
-    "false_positives": 77,
-    "false_negatives": 10,
-    "true_negatives": 123,
-    "precision": 0.7116104868913857,
-    "recall": 0.95,
-    "f1": 0.8137044967880086,
-    "accuracy": 0.7825,
-    "false_alarms_per_minute": 2.31
+    "true_positives": 168,
+    "false_positives": 47,
+    "false_negatives": 32,
+    "true_negatives": 153,
+    "precision": 0.7813953488372093,
+    "recall": 0.84,
+    "f1": 0.8096385542168675,
+    "accuracy": 0.8025,
+    "false_alarms_per_minute": 1.41
   }
 }

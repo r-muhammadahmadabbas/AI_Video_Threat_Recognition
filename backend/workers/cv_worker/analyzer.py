@@ -84,7 +84,7 @@ class AnalyzerConfig:
 
     violence_enabled: bool = False
     violence_model_path: str = str(DEFAULT_MODELS_DIR / "violence" / "best.pt")
-    violence_confidence: float = 0.35
+    violence_confidence: float = 0.80
     violence_class_ids: tuple[int, ...] = (0,)
     violence_positive_labels: tuple[str, ...] = (
         "violence",
@@ -103,6 +103,7 @@ class FrameAnalysis:
     weapons: list[WeaponDetection] = field(default_factory=list)
     falls: list[Detection] = field(default_factory=list)
     violence: bool = False
+    violence_checked: bool = False
     pose_keypoints: np.ndarray | None = None
 
 
@@ -208,6 +209,7 @@ class FrameAnalyzer:
             index, self._config.violence_interval
         ):
             analysis.violence = self._violence_runner(frame)
+            analysis.violence_checked = True
 
         self._frame_index += 1
         return analysis
