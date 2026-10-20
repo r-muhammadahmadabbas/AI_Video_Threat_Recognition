@@ -12,8 +12,10 @@ from app.config import settings
 from app.evidence.storage import EvidenceStore, LocalEvidenceStore
 from app.logging import get_logger
 from workers.cv_worker.analyzer import AnalyzerConfig, FrameAnalyzer
+from workers.cv_worker.camera_config import load_camera_runtime
 from workers.cv_worker.clip_writer import ClipError, ClipWriter
 from workers.cv_worker.detector import Detection, YOLO26Detector
+from workers.cv_worker.enrichment import apply_enrichment
 from workers.cv_worker.event_adapter import EventCandidate, PersonPresenceAdapter
 from workers.cv_worker.incident_sink import (
     DatabaseIncidentSink,
@@ -80,6 +82,9 @@ class CVWorker:
         camera_id: int | None = None,
         incident_sink: IncidentSink | None = None,
         evidence_store: EvidenceStore | None = None,
+        enable_violence: bool = False,
+        enable_weapon: bool = False,
+        enable_fall: bool = False,
     ):
         self._source_id = source_id
         self._source_path = source_path
@@ -103,6 +108,12 @@ class CVWorker:
         self._enable_tracking = enable_tracking
         self._zones = zones or []
         self._rules = rules or []
+        # The extra models are switched on by the camera's own active rules, so
+        # an administrator adding a fight/weapon/person-down rule is enough to
+        # make the worker run the model that rule depends on.
+        self._enable_violence = enable_violence
+        self._enable_weapon = enable_weapon
+        self._enable_fall = enable_fall
         self._running = False
         self._video_source: VideoSource | None = None
         self._detector: YOLO26Detector | None = None
@@ -168,14 +179,14 @@ class CVWorker:
 
         return ByteTrackTracker(frame_rate=frame_rate, **tracker_args)
 
-    @staticmethod
-    def _analyzer_config() -> AnalyzerConfig:
-        """Build the analyzer config from ``MODEL_*`` settings.
+    def _analyzer_config(self) -> AnalyzerConfig:
+        """Build the analyzer config from settings plus this camera's rules.
 
-        Extra models (weapon, pose, fall, violence) stay off unless explicitly
-        enabled, because they are much heavier than the person detector. The
-        fall detector shares the ``pose_fall_detection_enabled`` switch: it is
-        the same product feature, answered by a dedicated posture model.
+        Extra models (weapon, pose, fall, violence) stay off unless enabled in
+        settings or required by an active threat rule. The fall detector shares
+        the ``pose_fall_detection_enabled`` switch: it is the same product
+        feature, answered by a dedicated posture model. Weapon and violence keep
+        a slower cadence than person tracking because they are far heavier.
         """
         model = settings.model
         return AnalyzerConfig(
@@ -183,11 +194,14 @@ class CVWorker:
             person_confidence=model.detector_confidence,
             person_iou=model.detector_iou,
             device=model.inference_device,
-            weapon_enabled=model.weapon_detection_enabled,
+            weapon_enabled=model.weapon_detection_enabled or self._enable_weapon,
             weapon_confidence=model.weapon_confidence,
+            weapon_interval=6,
             pose_enabled=model.pose_fall_detection_enabled,
-            fall_enabled=model.pose_fall_detection_enabled,
-            violence_enabled=model.violence_detection_enabled,
+            pose_interval=30,
+            fall_enabled=model.pose_fall_detection_enabled or self._enable_fall,
+            violence_enabled=model.violence_detection_enabled or self._enable_violence,
+            violence_interval=2,
         )
 
     def start(self) -> None:
@@ -309,10 +323,13 @@ class CVWorker:
 
     def _process_frame(self, frame: Frame) -> None:
         assert self._detector is not None
-        detections = (
-            self._analyzer.analyze(frame.data).persons
+        analysis = (
+            self._analyzer.analyze(frame.data)
             if self._analyzer is not None
-            else self._detector.detect(frame.data)
+            else None
+        )
+        detections = (
+            analysis.persons if analysis is not None else self._detector.detect(frame.data)
         )
 
         if self._evidence_store is not None:
@@ -330,6 +347,10 @@ class CVWorker:
         snapshot: TrackSnapshot | None = None
         if self._tracker is not None:
             snapshot = self._tracker.update(detections, frame.timestamp)
+            if analysis is not None:
+                # Attach the frame's weapon/fall/violence model evidence to the
+                # tracks; the rules below consume those flags.
+                apply_enrichment(snapshot, analysis)
             if snapshot.new_track_ids:
                 logger.info(
                     "New tracks",
@@ -647,9 +668,19 @@ class CVWorker:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="CV Worker for single video source")
-    parser.add_argument("--source-id", required=True, help="Camera/source identifier")
-    parser.add_argument("--source-path", required=True, help="Path to video file")
-    parser.add_argument("--source-type", default="file", choices=["file", "rtsp", "webcam"])
+    parser.add_argument(
+        "--source-id",
+        default=None,
+        help="Camera/source identifier (defaults to camera-<id> with --camera-id)",
+    )
+    parser.add_argument(
+        "--source-path",
+        default=None,
+        help="Video file, device id or URL (defaults to the camera's stored URL)",
+    )
+    parser.add_argument(
+        "--source-type", default=None, choices=["file", "rtsp", "webcam"]
+    )
     parser.add_argument("--loop", action="store_true", help="Loop video file")
     parser.add_argument("--display", action="store_true", help="Show debug window")
     parser.add_argument(
@@ -661,23 +692,60 @@ def main() -> None:
         "--camera-id",
         type=int,
         default=None,
-        help="Database camera id to file incidents under (omit for file replay)",
+        help=(
+            "Database camera id. Loads the camera's source, zones and threat "
+            "rules and files incidents under it."
+        ),
     )
     args = parser.parse_args()
 
+    runtime = (
+        load_camera_runtime(args.camera_id)
+        if args.camera_id is not None
+        else None
+    )
+    source_id = args.source_id or (
+        f"camera-{runtime.camera_id}" if runtime is not None else None
+    )
+    source_path = args.source_path or (
+        runtime.source_url if runtime is not None else None
+    )
+    source_type = args.source_type or (
+        runtime.source_type if runtime is not None else "file"
+    )
+    if source_id is None or source_path is None:
+        parser.error("--source-id and --source-path are required without --camera-id")
+
+    if runtime is not None:
+        logger.info(
+            "Loaded camera configuration",
+            camera_id=runtime.camera_id,
+            camera=runtime.name,
+            zones=[zone.name for zone in runtime.zones],
+            rules=[rule.rule_id for rule in runtime.rules],
+            fight=runtime.fight_enabled,
+            weapon=runtime.weapon_enabled,
+            fall=runtime.fall_enabled,
+        )
+
     worker = CVWorker(
-        source_id=args.source_id,
-        source_path=args.source_path,
-        source_type=args.source_type,
+        source_id=source_id,
+        source_path=source_path,
+        source_type=source_type,
         loop=args.loop,
         display=args.display,
         enable_tracking=not args.no_tracking,
+        zones=runtime.zones if runtime is not None else None,
+        rules=runtime.rules if runtime is not None else None,
         camera_id=args.camera_id,
         evidence_store=(
             LocalEvidenceStore(settings.video.evidence_dir)
             if args.camera_id is not None
             else None
         ),
+        enable_violence=runtime.fight_enabled if runtime is not None else False,
+        enable_weapon=runtime.weapon_enabled if runtime is not None else False,
+        enable_fall=runtime.fall_enabled if runtime is not None else False,
     )
     worker.start()
 

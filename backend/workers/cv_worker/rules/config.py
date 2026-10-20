@@ -234,6 +234,41 @@ class AltercationConfig(BaseModel):
         return self
 
 
+class FightConfig(BaseModel):
+    """Thresholds for fight detection from the violence classifier.
+
+    The classifier answers a per-frame question ("does this frame show a
+    fight?"), which is noisy on its own. The rule turns it into an event by
+    requiring a short run of consecutive positive frames and then opening one
+    trigger per episode, with a cooldown.
+
+    Attributes:
+        min_consecutive_frames: consecutive model-positive frames before a
+            trigger opens. Two hits at the worker's cadence filter single-frame
+            blips (someone crouching fast) without missing real fights.
+        min_confidence: minimum person confidence to attribute the event to a
+            track. The classifier itself has already made the decision.
+        point: which point of the bbox to use for zone containment.
+        entry_margin/exit_margin: hysteresis multipliers used to derive this
+            rule's containment rings, as for every zone-bound rule.
+        cooldown_seconds: minimum gap between two triggers.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    min_consecutive_frames: int = Field(default=2, ge=1)
+    min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
+    point: Literal["bottom_center", "center"] = "bottom_center"
+    entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
+    exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
+    cooldown_seconds: float = Field(default=60.0, ge=0.0)
+
+    @model_validator(mode="after")
+    def _exit_must_be_tighter_than_entry(self) -> FightConfig:
+        _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
+
+
 class CrowdAnomalyConfig(BaseModel):
     """Thresholds for abnormal-crowd-movement candidate detection (Sprint 7A/7B).
 

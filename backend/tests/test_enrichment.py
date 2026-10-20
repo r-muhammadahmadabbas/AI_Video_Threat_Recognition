@@ -82,6 +82,17 @@ class TestViolenceEnrichment:
 
         assert track.violence_detected is False
 
+    def test_violence_checked_flag_is_copied(self):
+        track = make_track()
+
+        apply_enrichment(
+            snapshot(track), FrameAnalysis(violence=False, violence_checked=True)
+        )
+        assert track.violence_checked is True
+
+        apply_enrichment(snapshot(track), FrameAnalysis())
+        assert track.violence_checked is False
+
 
 def keypoints(nose, left_ankle, right_ankle) -> np.ndarray:
     pose = np.zeros((1, 17, 2), dtype=np.float32)

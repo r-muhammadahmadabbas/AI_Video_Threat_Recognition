@@ -21,10 +21,8 @@ import cv2
 
 from workers.cv_worker.analyzer import AnalyzerConfig, FrameAnalyzer
 from workers.cv_worker.enrichment import apply_enrichment
-from workers.cv_worker.rules.altercation import AltercationRule
 from workers.cv_worker.rules.base import Zone
 from workers.cv_worker.rules.config import (
-    AltercationConfig,
     CrowdAnomalyConfig,
     LoiterConfig,
     PersonDownConfig,
@@ -106,14 +104,6 @@ def _upload_rules(zone_id: str) -> list[BehaviorRule]:
             zone_name="Full frame",
             severity="high",
             config=WeaponConfig(),
-        ),
-        AltercationRule(
-            rule_id="altercation",
-            rule_name="Potential physical altercation",
-            zone_id=zone_id,
-            zone_name="Full frame",
-            severity="high",
-            config=AltercationConfig(),
         ),
         CrowdMotionRule(
             rule_id="crowd_anomaly",

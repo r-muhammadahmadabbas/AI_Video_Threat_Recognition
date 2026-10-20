@@ -7,6 +7,7 @@ Public surface:
 * :mod:`base` - the contract every rule implements;
 * :mod:`restricted_zone`, :mod:`loitering` - concrete rules;
 * :mod:`altercation`, :mod:`person_down` - pair and posture rules;
+* :mod:`fight` - the violence classifier expressed as a temporal rule;
 * :mod:`crowd` - crowd-level anomaly scoring;
 * :mod:`engine` - binds zones and rules to one camera.
 """
@@ -23,6 +24,7 @@ from workers.cv_worker.rules.base import (
 from workers.cv_worker.rules.config import (
     AltercationConfig,
     CrowdAnomalyConfig,
+    FightConfig,
     LoiterConfig,
     PersonDownConfig,
     WeaponConfig,
@@ -32,6 +34,7 @@ from workers.cv_worker.rules.config import (
 )
 from workers.cv_worker.rules.crowd import CrowdMotionRule
 from workers.cv_worker.rules.engine import RuleEngine, zone_to_pixel_polygon
+from workers.cv_worker.rules.fight import FightRule
 from workers.cv_worker.rules.geometry import InvalidPolygonError, Polygon
 from workers.cv_worker.rules.loitering import LoiterRule
 from workers.cv_worker.rules.person_down import PersonDownRule
@@ -44,6 +47,8 @@ __all__ = [
     "BehaviorRule",
     "CrowdAnomalyConfig",
     "CrowdMotionRule",
+    "FightConfig",
+    "FightRule",
     "InvalidPolygonError",
     "LoiterConfig",
     "LoiterRule",

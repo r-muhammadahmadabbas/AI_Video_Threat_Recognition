@@ -35,6 +35,10 @@ class TrackedObject:
     weapon_confidence: float = 0.0
     fall_detected: bool = False
     violence_detected: bool = False
+    #: True when the violence model ran on this frame. Frames between model
+    #: runs carry ``violence_detected=False`` only because nothing was checked;
+    #: rules must not treat them as negatives or the streak resets every frame.
+    violence_checked: bool = False
 
     @property
     def aspect_ratio(self) -> float:

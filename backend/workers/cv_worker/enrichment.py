@@ -31,6 +31,7 @@ def apply_enrichment(snapshot: TrackSnapshot, analysis: FrameAnalysis) -> None:
         track.weapon_confidence = 0.0
         track.fall_detected = False
         track.violence_detected = False
+        track.violence_checked = analysis.violence_checked
 
         _attach_weapons(track, analysis)
         _attach_falls(track, analysis)

@@ -297,11 +297,22 @@ export default function ZonesPage() {
 
   const openEdit = (zone: Zone) => {
     setEditing(zone);
+    const rings = (zone.polygon ?? []) as unknown as
+      number[][] | { x: number; y: number }[][];
+    const points = rings.length
+      ? rings.map((ring) =>
+          ring.map((point) =>
+            Array.isArray(point)
+              ? { x: point[0], y: point[1] }
+              : (point as { x: number; y: number }),
+          ),
+        )
+      : [[]];
     setForm({
       name: zone.name,
       camera_id: zone.camera_id,
       zone_type: zone.zone_type,
-      polygon: zone.polygon?.length ? zone.polygon : [[]],
+      polygon: points,
       is_active: zone.is_active,
     });
     setOpen(true);
@@ -314,13 +325,17 @@ export default function ZonesPage() {
       toast.error("Draw at least 3 points to form a polygon");
       return;
     }
+    const payload = {
+      ...form,
+      polygon: [points.map((point) => [point.x, point.y])],
+    };
     setSaving(true);
     try {
       if (editing) {
-        await api.updateZone(editing.id, form);
+        await api.updateZone(editing.id, payload);
         toast.success("Zone updated");
       } else {
-        await api.createZone(form);
+        await api.createZone(payload);
         toast.success("Zone created");
       }
       setOpen(false);
