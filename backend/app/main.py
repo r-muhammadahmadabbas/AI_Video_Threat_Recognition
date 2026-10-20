@@ -5,6 +5,7 @@ from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import settings
@@ -77,7 +78,7 @@ def create_app() -> FastAPI:
         from app.db.session import engine
         try:
             async with engine.connect() as conn:
-                await conn.execute("SELECT 1")
+                await conn.execute(text("SELECT 1"))
             return {"status": "ok", "service": "api", "database": "connected"}
         except Exception as e:
             logger.error("Readiness check failed", error=str(e))
