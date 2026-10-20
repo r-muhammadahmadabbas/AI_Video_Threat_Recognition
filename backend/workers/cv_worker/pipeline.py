@@ -53,8 +53,9 @@ UPLOAD_ZONE_ID = "upload-full-frame"
 FALL_CONFIDENCE = 0.40
 
 #: Consecutive violence-model hits required before an event opens. A single
-#: frame of a fast movement is not a fight; two hits at the upload cadence
-#: (~1 Hz for this model) cut false alarms sharply on non-fight footage.
+#: frame of a fast movement is not a fight; two hits in a row filter blips
+#: but still catch short (5 s) clips, where a 1 Hz cadence often samples the
+#: fight only once.
 VIOLENCE_PERSISTENCE = 2
 
 
@@ -141,8 +142,10 @@ class DetectionPipeline:
         ``frame_rate`` defaults to the rate at which the upload endpoint feeds
         frames (every 5th source frame, i.e. roughly 6 Hz), because ByteTrack's
         motion model must know the real spacing between updates. Person and
-        fall detection run on every analyzed frame; the heavier weapon, pose
-        and violence models keep a roughly 1 Hz cadence via their intervals.
+        fall detection run on every analyzed frame; the heavier weapon and
+        pose models keep a roughly 1 Hz cadence while the light violence
+        classifier runs every other analyzed frame (~3 Hz), which is what
+        catches fights inside short clips.
 
         ``analyzer`` and ``tracker`` exist so tests can inject fakes and avoid
         loading any model weights; production callers pass only ``confidence``.
@@ -158,7 +161,7 @@ class DetectionPipeline:
                 fall_enabled=True,
                 fall_confidence=FALL_CONFIDENCE,
                 violence_enabled=True,
-                violence_interval=6,
+                violence_interval=2,
             )
         )
         self._tracker = tracker or ByteTrackTracker(frame_rate=frame_rate)
