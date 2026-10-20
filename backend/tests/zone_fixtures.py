@@ -3,7 +3,12 @@
 from __future__ import annotations
 
 from workers.cv_worker.detector import Detection
-from workers.cv_worker.rules.base import TrackObservation, Zone, ZoneRuntime
+from workers.cv_worker.rules.base import (
+    TrackObservation,
+    Zone,
+    ZoneRuntime,
+    probe_point_for,
+)
 from workers.cv_worker.rules.config import ZoneConfig, ZoneEntryConfig
 from workers.cv_worker.rules.geometry import Polygon
 from workers.cv_worker.tracker import TrackedObject, TrackState
@@ -11,10 +16,15 @@ from workers.cv_worker.tracker import TrackedObject, TrackState
 
 def make_track(
     tracker_id: int = 1,
+    *,
     bbox: tuple[float, float, float, float] = (100.0, 100.0, 200.0, 300.0),
     confidence: float = 0.9,
     class_name: str = "person",
     class_id: int = 0,
+    weapon_detected: bool = False,
+    weapon_confidence: float = 0.0,
+    fall_detected: bool = False,
+    violence_detected: bool = False,
 ) -> TrackedObject:
     return TrackedObject(
         tracker_id=tracker_id,
@@ -26,6 +36,10 @@ def make_track(
         first_seen_timestamp=0.0,
         last_seen_timestamp=0.0,
         frames_seen=1,
+        weapon_detected=weapon_detected,
+        weapon_confidence=weapon_confidence,
+        fall_detected=fall_detected,
+        violence_detected=violence_detected,
     )
 
 
@@ -66,8 +80,6 @@ def make_observation(
     runtime: ZoneRuntime,
     point_choice: str = "bottom_center",
 ) -> TrackObservation:
-    from workers.cv_worker.rules.base import probe_point_for
-
     probe = probe_point_for(track, point_choice)
     return TrackObservation(
         track=track,

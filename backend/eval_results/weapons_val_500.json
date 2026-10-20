@@ -1,0 +1,25 @@
+{
+  "kind": "detections",
+  "config": {
+    "model": "yolo26n",
+    "confidence": 0.25,
+    "iou": 0.45,
+    "device": "cpu",
+    "weapon": true,
+    "weapon_confidence": 0.25,
+    "match_iou": 0.5,
+    "num_images": 500
+  },
+  "metrics": {
+    "per_class_ap": {
+      "blunt_weapon": 0.9546204620462058,
+      "explosive": 0.8703617749725854,
+      "firearm": 0.859770578870515,
+      "melee_weapon": 0.7331113092507677
+    },
+    "mean_ap": 0.8544660312850185,
+    "num_images": 500,
+    "num_gt_boxes": 859,
+    "num_predictions": 1380
+  }
+}

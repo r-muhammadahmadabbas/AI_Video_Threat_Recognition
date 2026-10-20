@@ -28,7 +28,7 @@ def make_rule(**overrides) -> WeaponRule:
     return WeaponRule(**kwargs)
 
 
-def run(rule, track, runtime, frames, dt=1.0, t0=0.0):
+def run(rule, track, runtime, *, frames, dt=1.0, t0=0.0):
     """Feed ``frames`` observations and return every trigger produced."""
     triggers = []
     for i in range(frames):
@@ -43,8 +43,14 @@ def residence(rule, tid=1) -> float:
     return rule.residence_seconds.get(tid, 0.0)
 
 
-def inside_track(tid=1, conf=1.0):
-    return make_track(tid, bbox=(150.0, 100.0, 250.0, 250.0), confidence=conf)
+def inside_track(tid=1, conf=1.0, weapon=True, weapon_conf=0.9):
+    return make_track(
+        tid,
+        bbox=(150.0, 100.0, 250.0, 250.0),
+        confidence=conf,
+        weapon_detected=weapon,
+        weapon_confidence=weapon_conf,
+    )
 
 
 def outside_track(tid=1):
@@ -68,6 +74,43 @@ class TestWeaponDwellThreshold:
         rule = make_rule(config=WeaponConfig(dwell_seconds=5.0))
         assert run(rule, outside_track(), runtime, frames=50) == []
         assert residence(rule) == 0.0
+
+
+class TestWeaponPresenceGating:
+    def test_unarmed_track_never_triggers(self, runtime):
+        rule = make_rule(config=WeaponConfig(dwell_seconds=2.0))
+        unarmed = inside_track(weapon=False)
+
+        assert run(rule, unarmed, runtime, frames=50) == []
+        assert residence(rule) == 0.0
+
+    def test_losing_the_weapon_ends_the_episode(self, runtime):
+        rule = make_rule(
+            config=WeaponConfig(dwell_seconds=10.0, grace_seconds=0.0)
+        )
+        armed = inside_track()
+        unarmed = inside_track(weapon=False)
+
+        run(rule, armed, runtime, frames=3, dt=1.0)
+        assert residence(rule) == 3.0
+
+        run(rule, unarmed, runtime, frames=1, t0=3, dt=1.0)
+        assert residence(rule) == 0.0
+
+    def test_grace_lets_brief_weapon_loss_survive(self, runtime):
+        rule = make_rule(
+            config=WeaponConfig(dwell_seconds=10.0, grace_seconds=5.0)
+        )
+        armed = inside_track()
+        unarmed = inside_track(weapon=False)
+
+        run(rule, armed, runtime, frames=2, dt=1.0)
+        run(rule, unarmed, runtime, frames=2, t0=2, dt=1.0)
+
+        assert residence(rule) == 2.0
+
+        assert len(run(rule, armed, runtime, frames=3, t0=4, dt=1.0)) == 0
+        assert residence(rule) == 5.0
 
 
 class TestWeaponCooldownAndDedup:
@@ -129,6 +172,7 @@ class TestTriggerPayload:
         assert trigger.details["event"] == "weapon"
         assert trigger.details["residence_seconds"] == pytest.approx(3.0)
         assert trigger.details["dwell_threshold_seconds"] == 3.0
+        assert trigger.details["weapon_confidence"] == 0.9
 
     def test_details_include_bbox(self, runtime):
         rule = make_rule(config=WeaponConfig(dwell_seconds=1.0))
@@ -154,7 +198,7 @@ class TestStateManagement:
         rule.update([], 10.0, 1.0)
         assert len(rule._episodes) == 0
 
-    def test_unknown_track_reports_zero(self, runtime):
+    def test_unknown_track_reports_zero(self):
         rule = make_rule()
         assert residence(rule, tid=999) == 0.0
 
@@ -179,7 +223,12 @@ class TestConfidenceFiltering:
         rule = make_rule(
             config=WeaponConfig(dwell_seconds=2.0, min_confidence=0.6)
         )
-        faint = make_track(bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.4)
+        faint = make_track(
+            bbox=(150.0, 100.0, 250.0, 250.0),
+            confidence=0.4,
+            weapon_detected=True,
+            weapon_confidence=0.9,
+        )
 
         run(rule, faint, runtime, frames=5, dt=1.0)
 
@@ -192,10 +241,16 @@ class TestConfidenceFiltering:
             )
         )
         confident = make_track(
-            bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.9
+            bbox=(150.0, 100.0, 250.0, 250.0),
+            confidence=0.9,
+            weapon_detected=True,
+            weapon_confidence=0.9,
         )
         faint = make_track(
-            bbox=(150.0, 100.0, 250.0, 250.0), confidence=0.2
+            bbox=(150.0, 100.0, 250.0, 250.0),
+            confidence=0.2,
+            weapon_detected=True,
+            weapon_confidence=0.9,
         )
 
         run(rule, confident, runtime, frames=3, dt=1.0)

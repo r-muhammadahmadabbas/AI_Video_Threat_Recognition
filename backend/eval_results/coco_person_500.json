@@ -1,0 +1,22 @@
+{
+  "kind": "detections",
+  "config": {
+    "model": "yolo26n",
+    "confidence": 0.25,
+    "iou": 0.45,
+    "device": "cpu",
+    "weapon": false,
+    "weapon_confidence": 0.25,
+    "match_iou": 0.5,
+    "num_images": 500
+  },
+  "metrics": {
+    "per_class_ap": {
+      "person": 0.6431608074748857
+    },
+    "mean_ap": 0.6431608074748857,
+    "num_images": 500,
+    "num_gt_boxes": 961,
+    "num_predictions": 746
+  }
+}

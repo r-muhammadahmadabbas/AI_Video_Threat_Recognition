@@ -1,15 +1,14 @@
+import warnings
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional
-import warnings
+from enum import StrEnum
 
 import numpy as np
 
 from workers.cv_worker.detector import Detection
 
 
-class TrackState(str, Enum):
+class TrackState(StrEnum):
     NEW = "new"
     TRACKED = "tracked"
     LOST = "lost"
@@ -28,6 +27,21 @@ class TrackedObject:
     last_seen_timestamp: float
     frames_seen: int
     missed_frames: int = 0
+    # Enrichment written by ``workers.cv_worker.enrichment``: which extra model
+    # outputs are associated with this track on the current frame. They are
+    # deliberately plain per-track state so rules can gate on them without
+    # knowing which detector produced them.
+    weapon_detected: bool = False
+    weapon_confidence: float = 0.0
+    fall_detected: bool = False
+    violence_detected: bool = False
+
+    @property
+    def aspect_ratio(self) -> float:
+        x1, y1, x2, y2 = self.bbox
+        width = max(0.0, x2 - x1)
+        height = max(1.0, y2 - y1)
+        return width / height
 
     @property
     def center(self) -> tuple[float, float]:
@@ -36,7 +50,7 @@ class TrackedObject:
 
     @property
     def bottom_center(self) -> tuple[float, float]:
-        x1, y1, x2, y2 = self.bbox
+        x1, _, x2, y2 = self.bbox
         return ((x1 + x2) / 2.0, y2)
 
     @property
@@ -58,7 +72,7 @@ class TrackSnapshot:
     new_track_ids: set[int] = field(default_factory=set)
     lost_track_ids: set[int] = field(default_factory=set)
 
-    def by_id(self, tracker_id: int) -> Optional[TrackedObject]:
+    def by_id(self, tracker_id: int) -> TrackedObject | None:
         for obj in self.tracked:
             if obj.tracker_id == tracker_id:
                 return obj
@@ -112,7 +126,7 @@ class ByteTrackTracker(Tracker):
     def _reset_backend(self) -> None:
         # supervision deprecated ByteTrack at the top-level sv.ByteTrack alias
         # in 0.28.0; the implementation now lives in this module path.
-        from supervision.tracker.byte_tracker.core import ByteTrack
+        from supervision.tracker.byte_tracker.core import ByteTrack  # noqa: PLC0415
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
@@ -137,7 +151,7 @@ class ByteTrackTracker(Tracker):
             tracked.append(obj)
 
         new_ids = self._mark_new(tracked)
-        lost_ids = self._mark_lost(tracked, timestamp)
+        lost_ids = self._mark_lost(tracked)
         self._retire(lost_ids)
 
         return TrackSnapshot(
@@ -145,7 +159,7 @@ class ByteTrackTracker(Tracker):
         )
 
     def _to_supervision(self, detections: list[Detection]):
-        import supervision as sv
+        import supervision as sv  # noqa: PLC0415
 
         return sv.Detections(
             xyxy=np.array([d.bbox for d in detections], dtype=np.float64),
@@ -210,7 +224,7 @@ class ByteTrackTracker(Tracker):
         return {obj.tracker_id for obj in tracked if obj.state == TrackState.NEW}
 
     def _mark_lost(
-        self, tracked: list[TrackedObject], timestamp: float
+        self, tracked: list[TrackedObject]
     ) -> set[int]:
         seen = {obj.tracker_id for obj in tracked}
         lost: set[int] = set()
@@ -232,7 +246,7 @@ class ByteTrackTracker(Tracker):
                 del self._tracks[tracker_id]
 
     def _handle_empty_frame(self, timestamp: float) -> TrackSnapshot:
-        lost_ids = self._mark_lost([], timestamp)
+        lost_ids = self._mark_lost([])
         self._retire(lost_ids)
         return TrackSnapshot(
             timestamp=timestamp, tracked=[], new_track_ids=set(), lost_track_ids=lost_ids

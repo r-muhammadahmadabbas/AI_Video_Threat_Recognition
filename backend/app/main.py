@@ -97,16 +97,16 @@ def create_app() -> FastAPI:
     from app.users.router import router as users_router
     from app.zones.router import router as zones_router
 
-    app.include_router(auth_router, prefix="/auth", tags=["auth"])
-    app.include_router(cameras_router, prefix="/cameras", tags=["cameras"])
+    app.include_router(auth_router, tags=["auth"])
+    app.include_router(cameras_router, tags=["cameras"])
     app.include_router(detection_router, tags=["detection"])
-    app.include_router(incidents_router, prefix="/incidents", tags=["incidents"])
-    app.include_router(zones_router, prefix="/zones", tags=["zones"])
-    app.include_router(rules_router, prefix="/rules", tags=["rules"])
-    app.include_router(evidence_router, prefix="/evidence", tags=["evidence"])
-    app.include_router(users_router, prefix="/users", tags=["users"])
-    app.include_router(audit_router, prefix="/audit", tags=["audit"])
-    app.include_router(dashboard_router, prefix="/dashboard", tags=["dashboard"])
+    app.include_router(incidents_router, tags=["incidents"])
+    app.include_router(zones_router, tags=["zones"])
+    app.include_router(rules_router, tags=["rules"])
+    app.include_router(evidence_router, tags=["evidence"])
+    app.include_router(users_router, tags=["users"])
+    app.include_router(audit_router, tags=["audit"])
+    app.include_router(dashboard_router, tags=["dashboard"])
 
     return app
 

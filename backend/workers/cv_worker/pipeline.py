@@ -1,56 +1,67 @@
-"""Full threat detection pipeline: all pre-trained models + all rules.
+"""Unified threat-detection pipeline for uploaded clips and images.
 
-Models:
-- Weapon: YOLO26x trained on 130K weapon images (firearm, knife, etc.)
-- Fall: YOLO11 trained on human fall detection (fallen/sitting/standing)
-- Violence: YOLO26 trained on surveillance violence detection
-- Crowd: person count from weapon detector + temporal rules
+This is the upload-side adapter over the same components the live camera worker
+uses: :class:`~workers.cv_worker.analyzer.FrameAnalyzer` for inference,
+:class:`~workers.cv_worker.tracker.ByteTrackTracker` for identity, and the shared
+:class:`~workers.cv_worker.rules.engine.RuleEngine` for events. Keeping one
+inference/tracking/rule path is what makes offline accuracy measurements
+transferable to production.
+
+An upload has no administrator-authored zones, so every rule is bound to one
+full-frame normalized zone. Event semantics therefore match a live camera whose
+whole view is the zone, while zone entry is trivially true.
 """
 
 from __future__ import annotations
 
-import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import cv2
-import numpy as np
-from ultralytics import YOLO
 
-from workers.cv_worker.weapon_detector import WeaponDetector, THREAT_CLASSES
+from workers.cv_worker.analyzer import AnalyzerConfig, FrameAnalyzer
+from workers.cv_worker.enrichment import apply_enrichment
+from workers.cv_worker.rules.altercation import AltercationRule
+from workers.cv_worker.rules.base import Zone
+from workers.cv_worker.rules.config import (
+    AltercationConfig,
+    CrowdAnomalyConfig,
+    LoiterConfig,
+    PersonDownConfig,
+    WeaponConfig,
+)
+from workers.cv_worker.rules.crowd import CrowdMotionRule
+from workers.cv_worker.rules.engine import RuleEngine
+from workers.cv_worker.rules.geometry import Polygon
+from workers.cv_worker.rules.loitering import LoiterRule
+from workers.cv_worker.rules.person_down import PersonDownRule
+from workers.cv_worker.rules.weapon import WeaponRule
+from workers.cv_worker.tracker import ByteTrackTracker
 
+if TYPE_CHECKING:
+    import numpy as np
 
-@dataclass
-class TrackedPerson:
-    track_id: int
-    bbox: tuple[float, float, float, float]
-    confidence: float
-    first_seen: float
-    last_seen: float
-    positions: list[tuple[float, float, float]] = field(default_factory=list)
-    weapon_detected: bool = False
-    weapon_confidence: float = 0.0
-    fall_detected: bool = False
-    violence_detected: bool = False
+    from workers.cv_worker.analyzer import FrameAnalysis
+    from workers.cv_worker.rules.base import BehaviorRule, RuleTrigger
+    from workers.cv_worker.tracker import Tracker, TrackSnapshot
 
-    @property
-    def center(self) -> tuple[float, float]:
-        x1, y1, x2, y2 = self.bbox
-        return ((x1 + x2) / 2, (y1 + y2) / 2)
+#: The synthetic zone every upload rule is bound to.
+UPLOAD_ZONE_ID = "upload-full-frame"
 
-    @property
-    def aspect_ratio(self) -> float:
-        x1, y1, x2, y2 = self.bbox
-        w = x2 - x1
-        h = y2 - y1
-        return w / h if h > 0 else 0.0
+#: Fall-model confidence tuned on URFD at 5 fps: 0.40 gave 0.77 recall at
+#: 0.43 precision, versus 0.25 which only traded precision for no recall gain.
+FALL_CONFIDENCE = 0.40
 
-    @property
-    def dwell_seconds(self) -> float:
-        return self.last_seen - self.first_seen
+#: Consecutive violence-model hits required before an event opens. A single
+#: frame of a fast movement is not a fight; two hits at the upload cadence
+#: (~1 Hz for this model) cut false alarms sharply on non-fight footage.
+VIOLENCE_PERSISTENCE = 2
 
 
 @dataclass
 class RuleEvent:
+    """An event in the shape the upload API has always returned."""
+
     rule: str
     severity: str
     timestamp: float
@@ -58,263 +69,330 @@ class RuleEvent:
     details: dict
 
 
-class SimpleTracker:
-    def __init__(self, iou_threshold: float = 0.3, max_missed: int = 10):
-        self.iou_threshold = iou_threshold
-        self.max_missed = max_missed
-        self.tracks: dict[int, TrackedPerson] = {}
-        self._next_id = 1
-        self._missed: dict[int, int] = {}
+def _full_frame_zone() -> Zone:
+    return Zone(
+        zone_id=UPLOAD_ZONE_ID,
+        name="Full frame",
+        polygon=Polygon.from_vertices(
+            [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]
+        ),
+    )
 
-    @staticmethod
-    def _iou(a, b):
-        ax1, ay1, ax2, ay2 = a
-        bx1, by1, bx2, by2 = b
-        ix1, iy1 = max(ax1, bx1), max(ay1, by1)
-        ix2, iy2 = min(ax2, bx2), min(ay2, by2)
-        iw, ih = max(0, ix2 - ix1), max(0, iy2 - iy1)
-        inter = iw * ih
-        area_a = (ax2 - ax1) * (ay2 - ay1)
-        area_b = (bx2 - bx1) * (by2 - by1)
-        union = area_a + area_b - inter
-        return inter / union if union > 0 else 0.0
 
-    def update(self, detections, timestamp):
-        matched = set()
-        used = set()
-
-        for bbox, conf in detections:
-            best_id = None
-            best_iou = self.iou_threshold
-            for tid, track in self.tracks.items():
-                if tid in used:
-                    continue
-                iou = self._iou(bbox, track.bbox)
-                if iou > best_iou:
-                    best_iou = iou
-                    best_id = tid
-
-            if best_id is not None:
-                track = self.tracks[best_id]
-                track.bbox = bbox
-                track.confidence = conf
-                track.last_seen = timestamp
-                track.positions.append((*track.center, timestamp))
-                self._missed[best_id] = 0
-                used.add(best_id)
-            else:
-                tid = self._next_id
-                self._next_id += 1
-                cx, cy = (bbox[0] + bbox[2]) / 2, (bbox[1] + bbox[3]) / 2
-                self.tracks[tid] = TrackedPerson(
-                    track_id=tid,
-                    bbox=bbox,
-                    confidence=conf,
-                    first_seen=timestamp,
-                    last_seen=timestamp,
-                    positions=[(cx, cy, timestamp)],
-                )
-                self._missed[tid] = 0
-                matched.add(tid)
-
-        for tid in list(self.tracks.keys()):
-            if tid not in used:
-                self._missed[tid] = self._missed.get(tid, 0) + 1
-                if self._missed[tid] > self.max_missed:
-                    del self.tracks[tid]
-                    del self._missed[tid]
-
-        return [t for t in self.tracks.values() if t.last_seen == timestamp]
+def _upload_rules(zone_id: str) -> list[BehaviorRule]:
+    """Every behavioural rule, with the same defaults live cameras use."""
+    return [
+        LoiterRule(
+            rule_id="loitering",
+            rule_name="Loitering",
+            zone_id=zone_id,
+            zone_name="Full frame",
+            severity="low",
+            config=LoiterConfig(),
+        ),
+        PersonDownRule(
+            rule_id="person_down",
+            rule_name="Person down",
+            zone_id=zone_id,
+            zone_name="Full frame",
+            severity="high",
+            config=PersonDownConfig(),
+        ),
+        WeaponRule(
+            rule_id="weapon",
+            rule_name="Weapon detected",
+            zone_id=zone_id,
+            zone_name="Full frame",
+            severity="high",
+            config=WeaponConfig(),
+        ),
+        AltercationRule(
+            rule_id="altercation",
+            rule_name="Potential physical altercation",
+            zone_id=zone_id,
+            zone_name="Full frame",
+            severity="high",
+            config=AltercationConfig(),
+        ),
+        CrowdMotionRule(
+            rule_id="crowd_anomaly",
+            rule_name="Crowd anomaly",
+            zone_id=zone_id,
+            zone_name="Full frame",
+            severity="medium",
+            config=CrowdAnomalyConfig(),
+        ),
+    ]
 
 
 class DetectionPipeline:
-    """All YOLO26 models + all rules in one pipeline."""
+    """All YOLO models, ByteTrack and all rules over one uploaded source."""
 
-    def __init__(self, confidence: float = 0.30):
-        self.weapon_detector = WeaponDetector(confidence=confidence)
-        self.pose_model = YOLO("models/pose/yolo26s-pose.pt")
-        self.violence_model = YOLO("models/violence/best.pt")
-        self.tracker = SimpleTracker()
+    def __init__(
+        self,
+        confidence: float = 0.30,
+        *,
+        frame_rate: float = 1.0,
+        analyzer: FrameAnalyzer | None = None,
+        tracker: Tracker | None = None,
+    ) -> None:
+        """Build a pipeline.
+
+        ``frame_rate`` defaults to the rate at which the upload endpoint feeds
+        frames (every 5th source frame, i.e. roughly 6 Hz), because ByteTrack's
+        motion model must know the real spacing between updates. Person and
+        fall detection run on every analyzed frame; the heavier weapon, pose
+        and violence models keep a roughly 1 Hz cadence via their intervals.
+
+        ``analyzer`` and ``tracker`` exist so tests can inject fakes and avoid
+        loading any model weights; production callers pass only ``confidence``.
+        """
+        self._analyzer = analyzer or FrameAnalyzer(
+            AnalyzerConfig(
+                person_confidence=confidence,
+                weapon_enabled=True,
+                weapon_confidence=confidence,
+                weapon_interval=6,
+                pose_enabled=True,
+                pose_interval=6,
+                fall_enabled=True,
+                fall_confidence=FALL_CONFIDENCE,
+                violence_enabled=True,
+                violence_interval=6,
+            )
+        )
+        self._tracker = tracker or ByteTrackTracker(frame_rate=frame_rate)
+        self._zone = _full_frame_zone()
+        self._person_down_config = PersonDownConfig()
+        self._engine: RuleEngine | None = None
+        self._last_timestamp: float | None = None
+        self._violence_streak = 0
+        self._violence_active = False
         self.events: list[RuleEvent] = []
-        self._crowd_history: list[tuple[float, int]] = []
-        self._alerted: dict[str, set] = {
-            "loitering": set(),
-            "person_down": set(),
-            "altercation": set(),
-            "violence": set(),
-        }
 
-    def process_frame(self, frame, timestamp):
-        h, w = frame.shape[:2]
-        weapon_results = self.weapon_detector.detect(frame)
-        person_dets = [(d.bbox, d.confidence) for d in weapon_results if d.class_name == "person"]
-        weapon_dets = [d for d in weapon_results if d.is_threat]
+    def reset_session(self) -> None:
+        """Clear per-video state so one pipeline instance can be reused safely."""
+        self._analyzer.reset()
+        self._tracker.reset()
+        # The frame size of the next upload is unknown, so the zone must be
+        # re-resolved for it rather than kept at the previous clip's resolution.
+        self._engine = None
+        self._last_timestamp = None
+        self._violence_streak = 0
+        self._violence_active = False
+        self.events.clear()
 
-        active_tracks = self.tracker.update(person_dets, timestamp)
+    def process_frame(
+        self, frame: np.ndarray, timestamp: float
+    ) -> tuple[np.ndarray, list[dict]]:
+        analysis = self._analyzer.analyze(frame)
+        snapshot = self._tracker.update(analysis.persons, timestamp)
+        apply_enrichment(snapshot, analysis)
 
-        # Run pose-based fall detection every 30th frame
-        pose_results = None
-        if int(timestamp * 25) % 30 == 0:
-            pose_results = self.pose_model.predict(source=frame, conf=0.25, device="cpu", verbose=False)
-            for track in active_tracks:
-                x1, y1, x2, y2 = [int(v) for v in track.bbox]
-                cx, cy = int((x1+x2)/2), int((y1+y2)/2)
-                for result in pose_results:
-                    if result.keypoints is None:
-                        continue
-                    for kpts in result.keypoints:
-                        kpts_data = kpts.xy.cpu().numpy() if hasattr(kpts.xy, 'cpu') else kpts.xy
-                        if len(kpts_data) == 0:
-                            continue
-                        k = kpts_data[0]
-                        nose_y = k[0][1] if len(k) > 0 else 0
-                        left_ankle_y = k[15][1] if len(k) > 15 else 0
-                        right_ankle_y = k[16][1] if len(k) > 16 else 0
-                        avg_ankle_y = (left_ankle_y + right_ankle_y) / 2
-                        if nose_y > 0 and avg_ankle_y > 0 and nose_y > avg_ankle_y * 0.7:
-                            track.fall_detected = True
-                        elif track.aspect_ratio > 1.3:
-                            track.fall_detected = True
+        dt = (
+            0.0
+            if self._last_timestamp is None
+            else max(0.0, timestamp - self._last_timestamp)
+        )
+        self._last_timestamp = timestamp
 
-        # Run violence detection every 15th frame only
-        vio_detected = False
-        if int(timestamp * 10) % 15 == 0:
-            vio_results = self.violence_model.predict(source=frame, conf=0.35, device="cpu", verbose=False)
-            for result in vio_results:
-                if result.boxes is None:
-                    continue
-                for box in result.boxes:
-                    cls_id = int(box.cls[0])
-                    conf = float(box.conf[0])
-                    if cls_id == 0 and conf > 0.35:
-                        vio_detected = True
-                        for track in active_tracks:
-                            track.violence_detected = True
+        triggers = self._engine_for(frame).process(snapshot.tracked, timestamp, dt)
+        self._record_triggers(triggers)
 
-        # Weapon-to-person association
-        for track in active_tracks:
-            for wd in weapon_dets:
-                if self._overlap(track.bbox, wd.bbox):
-                    track.weapon_detected = True
-                    track.weapon_confidence = max(track.weapon_confidence, wd.confidence)
+        # Violence is a per-frame model output, not a temporal rule. Require
+        # persistence across model evaluations, then emit on the rising edge
+        # only; otherwise every processed frame in a fight becomes a new
+        # incident. Frames where the model did not run leave the streak alone.
+        if analysis.violence_checked:
+            self._violence_streak = (
+                self._violence_streak + 1 if analysis.violence else 0
+            )
+            if (
+                self._violence_streak >= VIOLENCE_PERSISTENCE
+                and not self._violence_active
+            ):
+                self._violence_active = True
+                self.events.append(
+                    RuleEvent(
+                        rule="violence_detected",
+                        severity="high",
+                        timestamp=timestamp,
+                        tracker_ids=[t.tracker_id for t in snapshot.tracked],
+                        details={
+                            "event": "violence_detected",
+                            "source": "violence_model",
+                            "consecutive_frames": self._violence_streak,
+                        },
+                    )
+                )
+            if self._violence_streak == 0:
+                self._violence_active = False
 
-        # Run behavioral rules
-        frame_events = self._run_rules(active_tracks, timestamp, vio_detected)
-        self.events.extend(frame_events)
+        detections = self._detections(snapshot, analysis, timestamp)
+        annotated = self._annotate(frame, snapshot, analysis)
+        return annotated, detections
 
-        annotated = self._annotate(frame, active_tracks, weapon_dets, vio_detected, pose_results)
+    def _engine_for(self, frame: np.ndarray) -> RuleEngine:
+        if self._engine is None:
+            height, width = frame.shape[:2]
+            engine = RuleEngine(
+                camera_id="upload",
+                frame_width=width,
+                frame_height=height,
+            )
+            engine.load_zone(self._zone)
+            for rule in _upload_rules(UPLOAD_ZONE_ID):
+                engine.bind_rule(rule, UPLOAD_ZONE_ID)
+            self._engine = engine
+        return self._engine
 
-        detections = []
-        for track in active_tracks:
-            detections.append({
+    def _record_triggers(self, triggers: list[RuleTrigger]) -> None:
+        for trigger in triggers:
+            self.events.append(
+                RuleEvent(
+                    rule=trigger.rule_id,
+                    severity=trigger.severity,
+                    timestamp=trigger.timestamp,
+                    tracker_ids=[trigger.tracker_id],
+                    details={
+                        **trigger.details,
+                        "rule_name": trigger.rule_name,
+                        "zone_id": trigger.zone_id,
+                        "zone_name": trigger.zone_name,
+                    },
+                )
+            )
+
+    def _detections(
+        self,
+        snapshot: TrackSnapshot,
+        analysis: FrameAnalysis,
+        timestamp: float,
+    ) -> list[dict]:
+        rows: list[dict] = []
+
+        for track in snapshot.tracked:
+            fall = (
+                track.fall_detected
+                or track.aspect_ratio
+                >= self._person_down_config.aspect_ratio_threshold
+            )
+            rows.append(
+                {
+                    "timestamp": round(timestamp, 2),
+                    "class_name": "person",
+                    "confidence": round(track.confidence, 3),
+                    "bbox": [round(v, 1) for v in track.bbox],
+                    "is_threat": (
+                        track.weapon_detected or fall or track.violence_detected
+                    ),
+                    "track_id": track.tracker_id,
+                    "weapon": track.weapon_detected,
+                    "weapon_conf": (
+                        round(track.weapon_confidence, 3)
+                        if track.weapon_detected
+                        else 0
+                    ),
+                    "fall": fall,
+                    "violence": track.violence_detected,
+                }
+            )
+
+        rows.extend(
+            {
                 "timestamp": round(timestamp, 2),
-                "class_name": "person",
-                "confidence": round(track.confidence, 3),
-                "bbox": [round(v, 1) for v in track.bbox],
-                "is_threat": track.weapon_detected or track.fall_detected or track.violence_detected,
-                "track_id": track.track_id,
-                "weapon": track.weapon_detected,
-                "weapon_conf": round(track.weapon_confidence, 3) if track.weapon_detected else 0,
-                "fall": track.fall_detected,
-                "violence": track.violence_detected,
-            })
-        for wd in weapon_dets:
-            detections.append({
-                "timestamp": round(timestamp, 2),
-                "class_name": wd.class_name,
-                "confidence": round(wd.confidence, 3),
-                "bbox": [round(v, 1) for v in wd.bbox],
+                "class_name": weapon.class_name,
+                "confidence": round(weapon.confidence, 3),
+                "bbox": [round(v, 1) for v in weapon.bbox],
                 "is_threat": True,
                 "track_id": -1,
                 "weapon": True,
-                "weapon_conf": round(wd.confidence, 3),
+                "weapon_conf": round(weapon.confidence, 3),
                 "fall": False,
                 "violence": False,
-            })
+            }
+            for weapon in analysis.weapons
+        )
 
-        return annotated, detections
+        return rows
 
-    def _run_rules(self, tracks, timestamp, vio_detected):
-        events = []
-
-        # Crowd anomaly
-        count = len(tracks)
-        self._crowd_history.append((timestamp, count))
-        self._crowd_history = [(t, c) for t, c in self._crowd_history if timestamp - t <= 30.0]
-        if len(self._crowd_history) >= 3:
-            avg = sum(c for _, c in self._crowd_history) / len(self._crowd_history)
-            if count >= max(avg * 2.0, 5) and count >= 5:
-                events.append(RuleEvent("crowd_anomaly", "medium", timestamp,
-                    [t.track_id for t in tracks], {"count": count, "average": round(avg, 1)}))
-
-        # Violence/fight
-        if vio_detected:
-            events.append(RuleEvent("violence_detected", "high", timestamp,
-                [t.track_id for t in tracks], {"source": "violence_model"}))
-
-        # Altercation (pair proximity)
-        for i, a in enumerate(tracks):
-            for b in tracks[i + 1:]:
-                dist = math.hypot(a.center[0] - b.center[0], a.center[1] - b.center[1])
-                if dist < 80 and len(a.positions) >= 2 and len(b.positions) >= 2:
-                    key = tuple(sorted([a.track_id, b.track_id]))
-                    if key not in self._alerted["altercation"]:
-                        self._alerted["altercation"].add(key)
-                        events.append(RuleEvent("altercation", "high", timestamp,
-                            [a.track_id, b.track_id], {"distance": round(dist, 1)}))
-
-        # Loitering
-        for t in tracks:
-            if t.dwell_seconds >= 30.0 and t.track_id not in self._alerted["loitering"]:
-                self._alerted["loitering"].add(t.track_id)
-                events.append(RuleEvent("loitering", "low", timestamp,
-                    [t.track_id], {"dwell_seconds": round(t.dwell_seconds, 1)}))
-
-        # Person down
-        for t in tracks:
-            if t.fall_detected and t.track_id not in self._alerted["person_down"]:
-                self._alerted["person_down"].add(t.track_id)
-                events.append(RuleEvent("person_down", "high", timestamp,
-                    [t.track_id], {"aspect_ratio": round(t.aspect_ratio, 2)}))
-
-        return events
-
-    @staticmethod
-    def _overlap(a, b):
-        return not (a[2] < b[0] or a[0] > b[2] or a[3] < b[1] or a[1] > b[3])
-
-    def _annotate(self, frame, tracks, weapons, vio_detected, fall_results):
+    def _annotate(
+        self,
+        frame: np.ndarray,
+        snapshot: TrackSnapshot,
+        analysis: FrameAnalysis,
+    ) -> np.ndarray:
         img = frame.copy()
-        h, w = img.shape[:2]
+        width = img.shape[1]
 
-        for t in tracks:
-            x1, y1, x2, y2 = [int(v) for v in t.bbox]
-            color = (0, 0, 255) if t.weapon_detected else (255, 0, 0) if t.fall_detected else (255, 255, 0)
+        for track in snapshot.tracked:
+            x1, y1, x2, y2 = [int(v) for v in track.bbox]
+            if track.weapon_detected:
+                color = (0, 0, 255)
+                label = f"ID:{track.tracker_id} WEAPON {track.weapon_confidence:.2f}"
+            elif track.fall_detected:
+                color = (0, 165, 255)
+                label = f"ID:{track.tracker_id} FALLEN"
+            else:
+                color = (255, 255, 0)
+                label = f"ID:{track.tracker_id}"
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-            label = f"ID:{t.track_id}"
-            if t.weapon_detected:
-                label += f" GUN {t.weapon_confidence:.2f}"
-            elif t.fall_detected:
-                label += " FALLEN"
-            cv2.putText(img, label, (x1, max(y1 - 5, 15)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            cv2.putText(
+                img,
+                label,
+                (x1, max(y1 - 5, 15)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                2,
+            )
 
-        for wd in weapons:
-            x1, y1, x2, y2 = [int(v) for v in wd.bbox]
+        for weapon in analysis.weapons:
+            x1, y1, x2, y2 = [int(v) for v in weapon.bbox]
             cv2.rectangle(img, (x1, y1), (x2, y2), (0, 165, 255), 2)
-            cv2.putText(img, wd.class_name, (x1, max(y1 - 20, 15)),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 165, 255), 1)
+            cv2.putText(
+                img,
+                weapon.class_name,
+                (x1, max(y1 - 20, 15)),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.4,
+                (0, 165, 255),
+                1,
+            )
 
-        y_off = 50
-        if vio_detected:
-            cv2.putText(img, "! VIOLENCE DETECTED", (10, y_off), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-            y_off += 25
-        for t in tracks:
-            if t.fall_detected:
-                cv2.putText(img, f"! PERSON DOWN (ID:{t.track_id})", (10, y_off),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2)
-                y_off += 25
+        y_offset = 50
+        if analysis.violence:
+            cv2.putText(
+                img,
+                "! VIOLENCE DETECTED",
+                (10, y_offset),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.7,
+                (0, 0, 255),
+                2,
+            )
+            y_offset += 25
+        for track in snapshot.tracked:
+            if track.fall_detected:
+                cv2.putText(
+                    img,
+                    f"! PERSON DOWN (ID:{track.tracker_id})",
+                    (10, y_offset),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    0.7,
+                    (0, 0, 255),
+                    2,
+                )
+                y_offset += 25
 
-        cv2.putText(img, f"People: {len(tracks)}", (w - 150, 30),
-            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 2)
+        cv2.putText(
+            img,
+            f"People: {len(snapshot.tracked)}",
+            (max(width - 150, 10), 30),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.6,
+            (255, 255, 255),
+            2,
+        )
 
         return img

@@ -1,0 +1,29 @@
+{
+  "kind": "events",
+  "config": {
+    "match_iou": 0.001,
+    "num_clips": 70,
+    "duration_seconds": 398.6333333333334
+  },
+  "metrics": {
+    "per_type": {
+      "person_down": {
+        "true_positives": 23,
+        "false_positives": 30,
+        "false_negatives": 7,
+        "precision": 0.4339622641509434,
+        "recall": 0.7666666666666667,
+        "f1": 0.5542168674698795
+      }
+    },
+    "overall": {
+      "true_positives": 23,
+      "false_positives": 30,
+      "false_negatives": 7,
+      "precision": 0.4339622641509434,
+      "recall": 0.7666666666666667,
+      "f1": 0.5542168674698795
+    },
+    "false_alarms_per_minute": 4.515427711347102
+  }
+}
