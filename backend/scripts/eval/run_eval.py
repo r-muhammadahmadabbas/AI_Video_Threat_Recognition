@@ -292,7 +292,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     events.add_argument("--gt", type=Path, required=True)
     events.add_argument("--pred", type=Path, required=True)
-    events.add_argument("--match-iou", type=float, default=0.3)
+    events.add_argument(
+        "--match-iou",
+        type=float,
+        default=0.001,
+        help=(
+            "temporal IoU needed to match a prediction to a ground-truth "
+            "interval; 0.001 means any overlap, which is what point-like "
+            "rule triggers need"
+        ),
+    )
     events.add_argument(
         "--out", type=Path, default=Path("eval_results/events.json")
     )

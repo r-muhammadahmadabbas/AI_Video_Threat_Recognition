@@ -180,19 +180,59 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--target-fps", type=float, default=1.0)
     parser.add_argument("--confidence", type=float, default=0.30)
+    parser.add_argument(
+        "--fall-confidence",
+        type=float,
+        default=0.40,
+        help="threshold for the fall model (default 0.40, tuned on URFD)",
+    )
+    parser.add_argument(
+        "--no-weapon", action="store_true", help="skip the weapon model"
+    )
+    parser.add_argument(
+        "--no-pose", action="store_true", help="skip the pose model"
+    )
+    parser.add_argument(
+        "--no-fall", action="store_true", help="skip the fall model"
+    )
+    parser.add_argument(
+        "--no-violence", action="store_true", help="skip the violence model"
+    )
     return parser
+
+
+def build_pipeline(args: argparse.Namespace) -> PipelineLike:
+    """Build the production pipeline, optionally with models disabled."""
+    from workers.cv_worker.analyzer import (  # noqa: PLC0415
+        AnalyzerConfig,
+        FrameAnalyzer,
+    )
+    from workers.cv_worker.pipeline import DetectionPipeline  # noqa: PLC0415
+
+    analyzer = FrameAnalyzer(
+        AnalyzerConfig(
+            person_confidence=args.confidence,
+            weapon_enabled=not args.no_weapon,
+            weapon_confidence=args.confidence,
+            pose_enabled=not args.no_pose,
+            pose_interval=1,
+            fall_enabled=not args.no_fall,
+            fall_confidence=args.fall_confidence,
+            violence_enabled=not args.no_violence,
+            violence_interval=1,
+        )
+    )
+    return DetectionPipeline(
+        confidence=args.confidence,
+        frame_rate=args.target_fps,
+        analyzer=analyzer,
+    )
 
 
 def main() -> None:
     args = build_parser().parse_args()
 
-    from workers.cv_worker.pipeline import (  # noqa: PLC0415
-        DetectionPipeline,
-    )
-
-    pipeline = DetectionPipeline(
-        confidence=args.confidence, frame_rate=args.target_fps
-    )
+    pipeline = build_pipeline(args)
 
     clips: dict[str, ClipEvents] = {}
     for path in video_files(args.videos):

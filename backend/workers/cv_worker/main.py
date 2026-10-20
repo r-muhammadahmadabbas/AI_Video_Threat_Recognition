@@ -172,8 +172,10 @@ class CVWorker:
     def _analyzer_config() -> AnalyzerConfig:
         """Build the analyzer config from ``MODEL_*`` settings.
 
-        Extra models (weapon, pose, violence) stay off unless explicitly
-        enabled, because they are much heavier than the person detector.
+        Extra models (weapon, pose, fall, violence) stay off unless explicitly
+        enabled, because they are much heavier than the person detector. The
+        fall detector shares the ``pose_fall_detection_enabled`` switch: it is
+        the same product feature, answered by a dedicated posture model.
         """
         model = settings.model
         return AnalyzerConfig(
@@ -184,6 +186,7 @@ class CVWorker:
             weapon_enabled=model.weapon_detection_enabled,
             weapon_confidence=model.weapon_confidence,
             pose_enabled=model.pose_fall_detection_enabled,
+            fall_enabled=model.pose_fall_detection_enabled,
             violence_enabled=model.violence_detection_enabled,
         )
 

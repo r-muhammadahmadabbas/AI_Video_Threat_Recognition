@@ -73,7 +73,10 @@ class PersonDownRule(BehaviorRule):
             height = max(1.0, y2 - y1)
             aspect_ratio = width / height
 
-            is_down = aspect_ratio >= self.config.aspect_ratio_threshold
+            model_evidence = observation.track.fall_detected
+            is_down = model_evidence or (
+                aspect_ratio >= self.config.aspect_ratio_threshold
+            )
 
             if is_down:
                 episode.consecutive_down_frames += 1
@@ -83,7 +86,11 @@ class PersonDownRule(BehaviorRule):
             if not is_down:
                 continue
 
-            if episode.consecutive_down_frames < self.config.min_frames_down:
+            # A fall model hit is single-frame evidence (a person lying down
+            # may be sampled only once at upload frame rates); the aspect-ratio
+            # path keeps its multi-frame guard against box jitter.
+            required_frames = 1 if model_evidence else self.config.min_frames_down
+            if episode.consecutive_down_frames < required_frames:
                 continue
             if not self._cooldown_elapsed(episode, timestamp):
                 continue
@@ -91,7 +98,11 @@ class PersonDownRule(BehaviorRule):
             episode.last_triggered_at = timestamp
             triggers.append(
                 self._make_trigger(
-                    observation, timestamp, aspect_ratio, episode.consecutive_down_frames
+                    observation,
+                    timestamp,
+                    aspect_ratio,
+                    episode.consecutive_down_frames,
+                    model_evidence,
                 )
             )
 
@@ -109,6 +120,7 @@ class PersonDownRule(BehaviorRule):
         timestamp: float,
         aspect_ratio: float,
         consecutive_down_frames: int,
+        model_evidence: bool = False,
     ) -> RuleTrigger:
         track = observation.track
         return RuleTrigger(
@@ -125,7 +137,10 @@ class PersonDownRule(BehaviorRule):
                 "aspect_ratio": round(aspect_ratio, 3),
                 "threshold": self.config.aspect_ratio_threshold,
                 "consecutive_frames_down": consecutive_down_frames,
-                "min_frames_required": self.config.min_frames_down,
+                "min_frames_required": (
+                    1 if model_evidence else self.config.min_frames_down
+                ),
+                "evidence": "fall_model" if model_evidence else "aspect_ratio",
                 "bbox": list(track.bbox),
                 "probe_point": list(observation.probe_point),
             },

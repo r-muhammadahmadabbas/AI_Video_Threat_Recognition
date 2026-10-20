@@ -33,6 +33,7 @@ def apply_enrichment(snapshot: TrackSnapshot, analysis: FrameAnalysis) -> None:
         track.violence_detected = False
 
         _attach_weapons(track, analysis)
+        _attach_falls(track, analysis)
         if analysis.violence:
             track.violence_detected = True
         if analysis.pose_keypoints is not None and _pose_shows_fall(
@@ -56,6 +57,22 @@ def _attach_weapons(track: TrackedObject, analysis: FrameAnalysis) -> None:
         if x1 <= wx <= x2 and y1 <= wy <= y2:
             track.weapon_detected = True
             track.weapon_confidence = max(track.weapon_confidence, weapon.confidence)
+
+
+def _attach_falls(track: TrackedObject, analysis: FrameAnalysis) -> None:
+    """Associate a fallen-posture detection whose center lies on the track.
+
+    The fall model reports the fallen person as its own box; like weapons, the
+    box center must belong to the person track so a fallen neighbour does not
+    mark everyone as down.
+    """
+    for fall in analysis.falls:
+        fx = (fall.bbox[0] + fall.bbox[2]) / 2.0
+        fy = (fall.bbox[1] + fall.bbox[3]) / 2.0
+        x1, y1, x2, y2 = track.bbox
+        if x1 <= fx <= x2 and y1 <= fy <= y2:
+            track.fall_detected = True
+            return
 
 
 def _pose_shows_fall(keypoints: np.ndarray, bbox) -> bool:

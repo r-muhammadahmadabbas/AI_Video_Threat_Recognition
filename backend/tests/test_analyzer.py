@@ -57,6 +57,16 @@ class FakePoseRunner:
         return np.zeros((1, 17, 2), dtype=float)
 
 
+class FakeFallRunner:
+    def __init__(self, detections=None):
+        self.calls = 0
+        self._detections = detections if detections is not None else []
+
+    def __call__(self, _frame):
+        self.calls += 1
+        return list(self._detections)
+
+
 class FakeViolenceRunner:
     def __init__(self, result=True):
         self.calls = 0
@@ -174,3 +184,40 @@ class TestReset:
         assert fake_weapon.resets == 1
         assert fake_weapon.calls == 2
         assert pose.calls == 2
+
+class TestFallCadence:
+    def test_fall_runs_on_configured_interval(self):
+        fall = FakeFallRunner()
+        analyzer = FrameAnalyzer(
+            AnalyzerConfig(fall_interval=2),
+            person_model=FakePersonModel(),
+            fall_runner=fall,
+        )
+
+        analyzer.analyze(make_frame())
+        analyzer.analyze(make_frame())
+        analyzer.analyze(make_frame())
+
+        assert fall.calls == 2
+
+    def test_fall_detections_are_exposed(self):
+        detection = Detection(
+            bbox=(0.0, 0.0, 10.0, 10.0),
+            confidence=0.7,
+            class_id=0,
+            class_name="fallen",
+        )
+        analyzer = FrameAnalyzer(
+            AnalyzerConfig(fall_interval=1),
+            person_model=FakePersonModel(),
+            fall_runner=FakeFallRunner([detection]),
+        )
+
+        analysis = analyzer.analyze(make_frame())
+
+        assert analysis.falls == [detection]
+
+    def test_falls_empty_without_runner(self):
+        analyzer = FrameAnalyzer(person_model=FakePersonModel())
+
+        assert analyzer.analyze(make_frame()).falls == []

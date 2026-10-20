@@ -48,6 +48,10 @@ if TYPE_CHECKING:
 #: The synthetic zone every upload rule is bound to.
 UPLOAD_ZONE_ID = "upload-full-frame"
 
+#: Fall-model confidence tuned on URFD at 5 fps: 0.40 gave 0.77 recall at
+#: 0.43 precision, versus 0.25 which only traded precision for no recall gain.
+FALL_CONFIDENCE = 0.40
+
 
 @dataclass
 class RuleEvent:
@@ -130,8 +134,10 @@ class DetectionPipeline:
         """Build a pipeline.
 
         ``frame_rate`` defaults to the rate at which the upload endpoint feeds
-        frames (every 25th source frame, i.e. roughly 1 Hz), because ByteTrack's
-        motion model must know the real spacing between updates.
+        frames (every 5th source frame, i.e. roughly 6 Hz), because ByteTrack's
+        motion model must know the real spacing between updates. Person and
+        fall detection run on every analyzed frame; the heavier weapon, pose
+        and violence models keep a roughly 1 Hz cadence via their intervals.
 
         ``analyzer`` and ``tracker`` exist so tests can inject fakes and avoid
         loading any model weights; production callers pass only ``confidence``.
@@ -141,10 +147,13 @@ class DetectionPipeline:
                 person_confidence=confidence,
                 weapon_enabled=True,
                 weapon_confidence=confidence,
+                weapon_interval=6,
                 pose_enabled=True,
-                pose_interval=1,
+                pose_interval=6,
+                fall_enabled=True,
+                fall_confidence=FALL_CONFIDENCE,
                 violence_enabled=True,
-                violence_interval=1,
+                violence_interval=6,
             )
         )
         self._tracker = tracker or ByteTrackTracker(frame_rate=frame_rate)

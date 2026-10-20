@@ -115,6 +115,54 @@ class DetectionEvalResult:
     num_predictions: int
 
 
+def _class_matches(
+    gt_by_image: dict[str, list[BoxLabel]],
+    predictions_by_image: dict[str, list[BoxPrediction]],
+    class_name: str,
+    iou_threshold: float,
+) -> tuple[list[bool], list[float], int]:
+    """Greedy match one class; returns ``tp_flags``, scores, ``num_gt``.
+
+    ``tp_flags`` and ``scores`` are parallel and ordered by descending score,
+    so any confidence threshold keeps a prefix of both and the match results
+    stay valid without re-matching.
+    """
+    tp_flags: list[bool] = []
+    scores: list[float] = []
+    num_gt = 0
+
+    for image_id, labels in gt_by_image.items():
+        class_labels = [label for label in labels if label.class_name == class_name]
+        num_gt += len(class_labels)
+        class_predictions = sorted(
+            (
+                p
+                for p in predictions_by_image.get(image_id, [])
+                if p.class_name == class_name
+            ),
+            key=lambda p: p.confidence,
+            reverse=True,
+        )
+
+        matched: set[int] = set()
+        for prediction in class_predictions:
+            best_iou = 0.0
+            best_index = -1
+            for index, label in enumerate(class_labels):
+                if index in matched:
+                    continue
+                value = iou(prediction.bbox, label.bbox)
+                if value > best_iou:
+                    best_iou, best_index = value, index
+            hit = best_index >= 0 and best_iou >= iou_threshold
+            if hit:
+                matched.add(best_index)
+            tp_flags.append(hit)
+            scores.append(prediction.confidence)
+
+    return tp_flags, scores, num_gt
+
+
 def evaluate_detections(
     gt_by_image: dict[str, list[BoxLabel]],
     predictions_by_image: dict[str, list[BoxPrediction]],
@@ -127,39 +175,9 @@ def evaluate_detections(
     per_class_ap: dict[str, float] = {}
 
     for class_name in classes:
-        tp_flags: list[bool] = []
-        scores: list[float] = []
-        num_gt = 0
-
-        for image_id, labels in gt_by_image.items():
-            class_labels = [label for label in labels if label.class_name == class_name]
-            num_gt += len(class_labels)
-            class_predictions = sorted(
-                (
-                    p
-                    for p in predictions_by_image.get(image_id, [])
-                    if p.class_name == class_name
-                ),
-                key=lambda p: p.confidence,
-                reverse=True,
-            )
-
-            matched: set[int] = set()
-            for prediction in class_predictions:
-                best_iou = 0.0
-                best_index = -1
-                for index, label in enumerate(class_labels):
-                    if index in matched:
-                        continue
-                    value = iou(prediction.bbox, label.bbox)
-                    if value > best_iou:
-                        best_iou, best_index = value, index
-                hit = best_index >= 0 and best_iou >= iou_threshold
-                if hit:
-                    matched.add(best_index)
-                tp_flags.append(hit)
-                scores.append(prediction.confidence)
-
+        tp_flags, scores, num_gt = _class_matches(
+            gt_by_image, predictions_by_image, class_name, iou_threshold
+        )
         per_class_ap[class_name] = average_precision(tp_flags, scores, num_gt)
 
     mean_ap = (
@@ -174,6 +192,75 @@ def evaluate_detections(
             len(predictions) for predictions in predictions_by_image.values()
         ),
     )
+
+
+@dataclass
+class ThresholdScore:
+    """Operating-point P/R/F1 for one class at one confidence threshold."""
+
+    threshold: float
+    true_positives: int
+    false_positives: int
+    false_negatives: int
+    precision: float
+    recall: float
+    f1: float
+
+
+def score_at_threshold(
+    gt_by_image: dict[str, list[BoxLabel]],
+    predictions_by_image: dict[str, list[BoxPrediction]],
+    class_name: str,
+    threshold: float,
+    iou_threshold: float = 0.5,
+) -> ThresholdScore:
+    """P/R/F1 of one class when only predictions >= ``threshold`` are kept."""
+    tp_flags, scores, num_gt = _class_matches(
+        gt_by_image, predictions_by_image, class_name, iou_threshold
+    )
+    kept = [
+        flag
+        for flag, score in zip(tp_flags, scores, strict=True)
+        if score >= threshold
+    ]
+    true_positives = sum(kept)
+    false_positives = len(kept) - true_positives
+    false_negatives = num_gt - true_positives
+    counts = _score_counts(true_positives, false_positives, false_negatives)
+    return ThresholdScore(
+        threshold=threshold,
+        true_positives=true_positives,
+        false_positives=false_positives,
+        false_negatives=false_negatives,
+        precision=counts.precision,
+        recall=counts.recall,
+        f1=counts.f1,
+    )
+
+
+def sweep_thresholds(
+    gt_by_image: dict[str, list[BoxLabel]],
+    predictions_by_image: dict[str, list[BoxPrediction]],
+    thresholds: tuple[float, ...] = (0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.6, 0.7),
+    iou_threshold: float = 0.5,
+) -> dict[str, list[ThresholdScore]]:
+    """P/R/F1 for every GT class across a confidence-threshold grid."""
+    classes = sorted(
+        {label.class_name for labels in gt_by_image.values() for label in labels}
+    )
+    return {
+        class_name: [
+            score_at_threshold(
+                gt_by_image,
+                predictions_by_image,
+                class_name,
+                threshold,
+                iou_threshold,
+            )
+            for threshold in thresholds
+        ]
+        for class_name in classes
+    }
 
 
 @dataclass

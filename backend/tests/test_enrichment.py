@@ -2,6 +2,7 @@ import numpy as np
 
 from tests.zone_fixtures import make_track
 from workers.cv_worker.analyzer import FrameAnalysis
+from workers.cv_worker.detector import Detection
 from workers.cv_worker.enrichment import apply_enrichment
 from workers.cv_worker.tracker import TrackSnapshot
 from workers.cv_worker.weapon_detector import WeaponDetection
@@ -13,6 +14,12 @@ def snapshot(*tracks) -> TrackSnapshot:
 
 def weapon(name="firearm", confidence=0.8, bbox=(140.0, 140.0, 160.0, 160.0)):
     return WeaponDetection(class_name=name, confidence=confidence, bbox=bbox)
+
+
+def fall(confidence=0.8, bbox=(140.0, 140.0, 160.0, 160.0)):
+    return Detection(
+        bbox=bbox, confidence=confidence, class_id=0, class_name="fallen"
+    )
 
 
 class TestWeaponAssociation:
@@ -114,5 +121,31 @@ class TestPoseFallEnrichment:
         pose = keypoints(nose=(150.0, 400.0), left_ankle=(0.0, 0.0), right_ankle=(0.0, 0.0))
 
         apply_enrichment(snapshot(track), FrameAnalysis(pose_keypoints=pose))
+
+        assert track.fall_detected is False
+
+class TestFallAssociation:
+    def test_fall_centered_on_person_is_attached(self):
+        track = make_track(bbox=(100.0, 100.0, 200.0, 300.0))
+        analysis = FrameAnalysis(falls=[fall()])
+
+        apply_enrichment(snapshot(track), analysis)
+
+        assert track.fall_detected is True
+
+    def test_fall_center_outside_the_person_is_not_attached(self):
+        track = make_track(bbox=(100.0, 100.0, 200.0, 300.0))
+        analysis = FrameAnalysis(falls=[fall(bbox=(210.0, 150.0, 230.0, 170.0))])
+
+        apply_enrichment(snapshot(track), analysis)
+
+        assert track.fall_detected is False
+
+    def test_fall_flag_clears_next_frame(self):
+        track = make_track(bbox=(100.0, 100.0, 200.0, 300.0))
+        apply_enrichment(snapshot(track), FrameAnalysis(falls=[fall()]))
+        assert track.fall_detected is True
+
+        apply_enrichment(snapshot(track), FrameAnalysis())
 
         assert track.fall_detected is False

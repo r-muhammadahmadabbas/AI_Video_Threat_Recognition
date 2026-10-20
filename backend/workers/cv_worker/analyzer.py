@@ -47,6 +47,8 @@ class WeaponModel(Protocol):
 PoseRunner = Callable[[np.ndarray], "np.ndarray | None"]
 #: Violence runner: frame -> whether the frame shows violence.
 ViolenceRunner = Callable[[np.ndarray], bool]
+#: Fall runner: frame -> detections of people in a fallen posture.
+FallRunner = Callable[[np.ndarray], list[Detection]]
 
 
 @dataclass(frozen=True)
@@ -74,10 +76,22 @@ class AnalyzerConfig:
     pose_confidence: float = 0.25
     pose_interval: int = 30
 
+    fall_enabled: bool = False
+    fall_model_path: str = str(DEFAULT_MODELS_DIR / "fall" / "best.pt")
+    fall_confidence: float = 0.40
+    fall_class_ids: tuple[int, ...] = (0,)
+    fall_interval: int = 1
+
     violence_enabled: bool = False
     violence_model_path: str = str(DEFAULT_MODELS_DIR / "violence" / "best.pt")
     violence_confidence: float = 0.35
     violence_class_ids: tuple[int, ...] = (0,)
+    violence_positive_labels: tuple[str, ...] = (
+        "violence",
+        "violent",
+        "fight",
+        "fighting",
+    )
     violence_interval: int = 15
 
 
@@ -87,6 +101,7 @@ class FrameAnalysis:
 
     persons: list[Detection] = field(default_factory=list)
     weapons: list[WeaponDetection] = field(default_factory=list)
+    falls: list[Detection] = field(default_factory=list)
     violence: bool = False
     pose_keypoints: np.ndarray | None = None
 
@@ -105,6 +120,7 @@ class FrameAnalyzer:
         person_model: PersonModel | None = None,
         weapon_model: WeaponModel | None = None,
         pose_runner: PoseRunner | None = None,
+        fall_runner: FallRunner | None = None,
         violence_runner: ViolenceRunner | None = None,
     ) -> None:
         """Build an analyzer.
@@ -148,11 +164,22 @@ class FrameAnalyzer:
             if self._config.pose_enabled
             else None
         )
+        self._fall_runner = fall_runner or (
+            _build_fall_runner(
+                self._config.fall_model_path,
+                self._config.fall_confidence,
+                self._config.fall_class_ids,
+                self._config.device,
+            )
+            if self._config.fall_enabled
+            else None
+        )
         self._violence_runner = violence_runner or (
             _build_violence_runner(
                 self._config.violence_model_path,
                 self._config.violence_confidence,
                 self._config.violence_class_ids,
+                self._config.violence_positive_labels,
                 self._config.device,
             )
             if self._config.violence_enabled
@@ -173,6 +200,9 @@ class FrameAnalyzer:
 
         if self._pose_runner is not None and self._due(index, self._config.pose_interval):
             analysis.pose_keypoints = self._pose_runner(frame)
+
+        if self._fall_runner is not None and self._due(index, self._config.fall_interval):
+            analysis.falls = self._fall_runner(frame)
 
         if self._violence_runner is not None and self._due(
             index, self._config.violence_interval
@@ -211,21 +241,76 @@ def _build_pose_runner(model_path: str, confidence: float, device: str) -> PoseR
     return run
 
 
-def _build_violence_runner(
+def _build_fall_runner(
     model_path: str,
     confidence: float,
     class_ids: tuple[int, ...],
     device: str,
+) -> FallRunner:
+    """Load a fallen-posture detector once and return the per-frame runner."""
+    model = YOLO(model_path)
+    wanted = set(class_ids)
+
+    def run(frame: np.ndarray) -> list[Detection]:
+        results = model.predict(
+            source=frame, conf=confidence, device=device, verbose=False
+        )
+        detections: list[Detection] = []
+        for result in results:
+            if result.boxes is None:
+                continue
+            boxes = result.boxes.xyxy.cpu().numpy()
+            scores = result.boxes.conf.cpu().numpy()
+            classes = result.boxes.cls.cpu().numpy().astype(int)
+            names = result.names
+            for box, score, class_id in zip(
+                boxes, scores, classes, strict=True
+            ):
+                if int(class_id) not in wanted:
+                    continue
+                detections.append(
+                    Detection(
+                        bbox=tuple(float(value) for value in box),
+                        confidence=float(score),
+                        class_id=int(class_id),
+                        class_name=names.get(int(class_id), str(class_id)),
+                    )
+                )
+        return detections
+
+    return run
+
+
+def _build_violence_runner(
+    model_path: str,
+    confidence: float,
+    class_ids: tuple[int, ...],
+    positive_labels: tuple[str, ...],
+    device: str,
 ) -> ViolenceRunner:
-    """Load a violence classifier once and return the per-frame runner."""
+    """Load a violence model and return the per-frame runner.
+
+    Supports both a frame classifier (``probs`` output) and the legacy
+    single-class detector (``boxes`` output), so a replacement classifier can
+    be dropped in without touching the pipeline.
+    """
     model = YOLO(model_path)
     threat_ids = set(class_ids)
+    positives = {label.lower() for label in positive_labels}
 
     def run(frame: np.ndarray) -> bool:
         results = model.predict(
             source=frame, conf=confidence, device=device, verbose=False
         )
         for result in results:
+            probabilities = getattr(result, "probs", None)
+            if probabilities is not None:
+                top = int(probabilities.top1)
+                label = str(result.names.get(top, top)).lower()
+                return (
+                    float(probabilities.top1conf) > confidence
+                    and label in positives
+                )
             if result.boxes is None:
                 continue
             for box in result.boxes:

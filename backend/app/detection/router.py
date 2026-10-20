@@ -20,6 +20,14 @@ from workers.cv_worker.pipeline import DetectionPipeline
 logger = get_logger(__name__)
 router = APIRouter()
 
+#: Analyze every Nth source frame. Falls need temporal density: 1-in-25
+#: sampling leaves ByteTrack unable to confirm a track while the person's box
+#: changes shape mid-fall, while 1-in-5 keeps the tracker fed at roughly 6 Hz.
+SAMPLE_EVERY = 5
+#: Effective analysis rate for a 30 fps upload; the pipeline's model cadences
+#: and ByteTrack's motion model are expressed in analyzed frames.
+ANALYZED_FPS = 6.0
+
 _pipeline: DetectionPipeline | None = None
 _pipeline_lock = threading.Lock()
 
@@ -31,7 +39,9 @@ def _get_pipeline() -> DetectionPipeline:
         with _pipeline_lock:
             if _pipeline is None:
                 logger.info("Loading detection models")
-                _pipeline = DetectionPipeline(confidence=0.30)
+                _pipeline = DetectionPipeline(
+                    confidence=0.30, frame_rate=ANALYZED_FPS
+                )
     return _pipeline
 
 
@@ -84,7 +94,7 @@ def _process_video_file(path: Path) -> DetectionResponse:
         ok, frame = cap.read()
         if not ok:
             break
-        if frame_idx % 25 == 0:
+        if frame_idx % SAMPLE_EVERY == 0:
             ts = round(frame_idx / fps, 2)
             annotated, dets = pipeline.process_frame(frame, ts)
             img_b64 = _encode_frame(annotated)
