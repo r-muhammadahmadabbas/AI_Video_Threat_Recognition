@@ -22,6 +22,7 @@ PROGRESS_PATH = AUTOPILOT_DIR / "PROGRESS.md"
 OUTCOME_PATH = AUTOPILOT_DIR / "outcome.json"
 CANDIDATE_PATCH_PATH = AUTOPILOT_DIR / "candidate.patch"
 STATE_PATHS = {".autopilot/state.json", ".autopilot/PROGRESS.md"}
+PATCH_EXCLUDES = tuple(f":(exclude){path}" for path in STATE_PATHS)
 RUN_ID = os.environ.get("GITHUB_RUN_ID", "local")
 TODAY = datetime.now(UTC).strftime("%Y-%m-%d")
 BRANCH = os.environ.get("AUTOPILOT_BRANCH") or f"autopilot/{TODAY}-{RUN_ID}"
@@ -974,7 +975,7 @@ def create_issue(title: str, body: str) -> None:
 
 def write_patch() -> None:
     run_process(["git", "add", "-N", "."])
-    _, output, _ = run_process(["git", "diff"])
+    _, output, _ = run_process(["git", "diff", "--", ".", *PATCH_EXCLUDES])
     write_text(CANDIDATE_PATCH_PATH, output)
 
 

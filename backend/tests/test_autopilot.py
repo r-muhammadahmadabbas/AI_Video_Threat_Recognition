@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from scripts.autopilot import orchestrator
 from scripts.autopilot.orchestrator import (
     MODEL_CHAINS,
+    PATCH_EXCLUDES,
     SPRINTS,
+    STATE_PATHS,
     current_task,
     initial_state,
     is_transient_failure,
@@ -15,6 +18,22 @@ from scripts.autopilot.orchestrator import (
     validate_changes,
     validate_decision,
 )
+
+
+def test_write_patch_excludes_autopilot_state(monkeypatch, tmp_path) -> None:
+    calls: list[list[str]] = []
+
+    def fake_run(command, **_kwargs):
+        calls.append(command)
+        return 0, "", False
+
+    monkeypatch.setattr(orchestrator, "run_process", fake_run)
+    monkeypatch.setattr(orchestrator, "CANDIDATE_PATCH_PATH", tmp_path / "candidate.patch")
+    orchestrator.write_patch()
+    diff_calls = [command for command in calls if command[:2] == ["git", "diff"]]
+    assert len(diff_calls) == 1
+    assert set(PATCH_EXCLUDES) <= set(diff_calls[0])
+    assert set(STATE_PATHS) == {".autopilot/state.json", ".autopilot/PROGRESS.md"}
 
 
 def test_workflow_packages_hidden_autopilot_artifact() -> None:
