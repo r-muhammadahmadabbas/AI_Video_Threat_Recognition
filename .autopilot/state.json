@@ -2,10 +2,10 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-21T23:33:39+00:00",
+  "updated_at": "2026-10-21T23:44:23+00:00",
   "sprint_index": 2,
   "task_index": 1,
-  "attempts": 0,
+  "attempts": 1,
   "completed": [
     "sprint-1.1",
     "sprint-1.2",
@@ -16,15 +16,17 @@
   ],
   "blocked": [],
   "last_result": {
-    "status": "approved",
-    "task": "sprint-3.1",
-    "reason": "Fight rule now requires a nearby moving pair with differing velocities before firing, suppressing fast single-person motion, hugging, camera shake, and crowd movement, with non-vacuous unit tests and preserved true-positive coverage; accuracy was not measured because model weights and labelled clips are missing."
+    "status": "blocked",
+    "task": "sprint-3.2",
+    "reason": "deterministic gates failed"
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
-    "policy_errors": [],
-    "diff_lines": 400
+    "policy_errors": [
+      "too many changed files: 7 > 6"
+    ],
+    "diff_lines": 286
   },
   "metrics": {},
   "runs": 0,

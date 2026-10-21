@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-21T23:33:39+00:00
+- Updated: 2026-10-21T23:44:23+00:00
 - Status: running
 - Progress: 6/17 tasks, 0 blocked, 0 runs
 - Current: Sprint 3/8 (Fight false-alarm reduction) / Task 2 (Improve fight temporal fusion)
-- Last result: approved: Fight rule now requires a nearby moving pair with differing velocities before firing, suppressing fast single-person motion, hugging, camera shake, and crowd movement, with non-vacuous unit tests and preserved true-positive coverage; accuracy was not measured because model weights and labelled clips are missing.
+- Last result: blocked: deterministic gates failed
 
 ## Sprint board
 
