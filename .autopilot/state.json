@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "status": "running",
+  "created_at": "2026-10-21T21:22:20+00:00",
+  "updated_at": "2026-10-21T21:33:54+00:00",
+  "sprint_index": 0,
+  "task_index": 0,
+  "attempts": 1,
+  "completed": [],
+  "blocked": [],
+  "last_result": {
+    "status": "blocked",
+    "task": "sprint-1.1",
+    "reason": "deterministic gates failed"
+  },
+  "last_gates": {
+    "tests_ok": false,
+    "ruff_ok": true,
+    "policy_errors": [],
+    "diff_lines": 395
+  },
+  "metrics": {},
+  "runs": 0,
+  "current": {
+    "sprint_index": 0,
+    "task_index": 0,
+    "sprint_id": "sprint-1",
+    "sprint_name": "Benchmark and holdout baseline",
+    "rule": "all",
+    "task_id": "sprint-1.1",
+    "task_title": "Define benchmark manifest and holdout split",
+    "goal": "Create or extend a benchmark manifest under backend/scripts/eval/ that lists clips, labels, and dev/validation/holdout splits for every rule. If clips are missing, record the expected path and missing status; do not invent clips or metrics.",
+    "exit": "Manifest schema, loader, tests, and no fabricated data."
+  }
+}
