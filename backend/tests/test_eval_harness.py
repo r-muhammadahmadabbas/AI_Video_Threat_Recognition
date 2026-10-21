@@ -138,6 +138,14 @@ class TestEventEvaluation:
         assert scores.false_negatives == 1
         assert scores.recall == 0.0
 
+    def test_empty_ground_truth_is_not_scored_as_perfect(self):
+        result = evaluate_events([], [], duration_seconds=60.0)
+
+        assert result.overall.true_positives == 0
+        assert result.overall.precision == 0.0
+        assert result.overall.recall == 0.0
+        assert result.overall.f1 == 0.0
+
     def test_types_are_scored_separately(self):
         result = evaluate_events(
             [EventInterval("fall", 0, 10)],
@@ -191,6 +199,15 @@ class TestClipMetrics:
 
         assert result.false_negatives == 1
         assert result.recall == 0.0
+        assert result.accuracy == 0.0
+
+    def test_empty_ground_truth_labels_are_not_scored_as_perfect(self):
+        result = evaluate_clip_labels({}, {}, "violence")
+
+        assert result.false_negatives == 0
+        assert result.precision == 0.0
+        assert result.recall == 0.0
+        assert result.f1 == 0.0
         assert result.accuracy == 0.0
 
 
@@ -362,6 +379,13 @@ class TestSchema:
         save_clip_labels(path, labels)
 
         assert load_clip_labels(path) == labels
+
+    def test_missing_clip_label_field_fails_loudly(self, tmp_path):
+        path = tmp_path / "labels.jsonl"
+        path.write_text('{"clip": "a.avi"}\n', encoding="utf-8")
+
+        with pytest.raises(TypeError, match="no labels list"):
+            load_clip_labels(path)
 
 
 @dataclass

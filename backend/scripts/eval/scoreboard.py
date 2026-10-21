@@ -18,6 +18,12 @@ DETECTION_PRF_REASON = (
 )
 DETECTION_ALARM_REASON = "existing detection report has no event stream or total clip duration"
 REQUIRED_FIELDS = ("precision", "recall", "f1", "false_alarms_per_10_minutes", "latency_ms")
+SCORE_FIELDS = ("precision", "recall", "f1")
+COUNT_FIELDS = ("true_positives", "false_positives", "false_negatives")
+MISSING_COUNTS_REASON = (
+    "existing eval report has no TP/FP/FN counts; its precision, recall and "
+    "F1 cannot be verified"
+)
 REPRODUCTION_NOTES = {
     "fall_events_urfd_5fps_overlap": (
         "no matching raw prediction file is stored, and the c40/c60 prediction "
@@ -29,6 +35,46 @@ REPRODUCTION_NOTES = {
 def _missing(row: dict[str, Any], field: str, reason: str) -> None:
     row[field] = None
     row["missing"][field] = reason
+
+
+def _counts(scores: dict[str, Any]) -> tuple[int, int, int] | None:
+    """Return validated TP/FP/FN counts, or ``None`` when they are absent."""
+    values: list[int] = []
+    for field in COUNT_FIELDS:
+        value = scores.get(field)
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or value < 0
+            or int(value) != value
+        ):
+            return None
+        values.append(int(value))
+    return values[0], values[1], values[2]
+
+
+def _scores_from_counts(scores: dict[str, Any]) -> dict[str, float] | None:
+    """Recompute P/R/F1 from counts so fabricated metric fields are ignored."""
+    counts = _counts(scores)
+    if counts is None:
+        return None
+    true_positives, false_positives, false_negatives = counts
+    precision = (
+        true_positives / (true_positives + false_positives)
+        if true_positives + false_positives
+        else 0.0
+    )
+    recall = (
+        true_positives / (true_positives + false_negatives)
+        if true_positives + false_negatives
+        else 0.0
+    )
+    f1 = (
+        2 * precision * recall / (precision + recall)
+        if precision + recall
+        else 0.0
+    )
+    return {"precision": precision, "recall": recall, "f1": f1}
 
 
 def _row_from_report(path: Path, data: dict[str, Any]) -> dict[str, Any]:
@@ -51,12 +97,12 @@ def _row_from_report(path: Path, data: dict[str, Any]) -> dict[str, Any]:
         _missing(row, "false_alarms_per_10_minutes", DETECTION_ALARM_REASON)
     else:
         scores = metrics.get("overall", metrics)
-        for field in ("precision", "recall", "f1"):
-            value = scores.get(field)
-            if value is None:
-                _missing(row, field, f"existing eval report does not include {field}")
+        verified = _scores_from_counts(scores)
+        for field in SCORE_FIELDS:
+            if verified is None:
+                _missing(row, field, MISSING_COUNTS_REASON)
             else:
-                row[field] = float(value)
+                row[field] = verified[field]
         per_minute = metrics.get("false_alarms_per_minute")
         if per_minute is None:
             _missing(

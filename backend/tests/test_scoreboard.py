@@ -81,6 +81,48 @@ def test_absent_false_alarm_rate_is_not_zero(tmp_path: Path) -> None:
     assert "false-alarm rate" in row["missing"]["false_alarms_per_10_minutes"]
 
 
+def test_fabricated_perfect_metrics_are_recomputed_from_counts(tmp_path: Path) -> None:
+    report = {
+        "kind": "clips",
+        "config": {},
+        "metrics": {
+            "true_positives": 0,
+            "false_positives": 0,
+            "false_negatives": 0,
+            "true_negatives": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "accuracy": 1.0,
+        },
+    }
+    (tmp_path / "empty_labels.json").write_text(json.dumps(report), encoding="utf-8")
+
+    row = _rows(build_scoreboard(tmp_path))["empty_labels"]
+
+    assert row["precision"] == 0.0
+    assert row["recall"] == 0.0
+    assert row["f1"] == 0.0
+
+
+def test_metrics_without_counts_are_missing_not_perfect(tmp_path: Path) -> None:
+    report = {
+        "kind": "events",
+        "config": {},
+        "metrics": {
+            "overall": {"precision": 1.0, "recall": 1.0, "f1": 1.0},
+            "false_alarms_per_minute": 0.0,
+        },
+    }
+    (tmp_path / "fabricated.json").write_text(json.dumps(report), encoding="utf-8")
+
+    row = _rows(build_scoreboard(tmp_path))["fabricated"]
+
+    for field in ("precision", "recall", "f1"):
+        assert row[field] is None
+        assert "TP/FP/FN" in row["missing"][field]
+
+
 def test_committed_scoreboard_matches_current_results() -> None:
     scoreboard = build_scoreboard(EVAL_RESULTS)
     committed = (EVAL_RESULTS / "BASELINE_SCOREBOARD.md").read_text(encoding="utf-8")

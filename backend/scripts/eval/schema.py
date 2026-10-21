@@ -149,11 +149,22 @@ def save_clip_events(path: Path, clips: dict[str, ClipEvents]) -> None:
 
 
 def load_clip_labels(path: Path) -> dict[str, set[str]]:
-    """Load per-clip labels, e.g. RWF-2000 fight/non-fight annotations."""
+    """Load per-clip labels, e.g. RWF-2000 fight/non-fight annotations.
+
+    A missing ``labels`` field is an incomplete annotation, not an implicit
+    negative; treating it as a negative would inflate accuracy on unlabelled
+    clips, so fail loudly instead.
+    """
     labels: dict[str, set[str]] = {}
     for record in _read_jsonl(path):
         clip = record["clip"]
-        labels[clip] = {str(label) for label in record.get("labels", [])}
+        clip_labels = record.get("labels")
+        if not isinstance(clip_labels, list):
+            raise TypeError(
+                f"{path}: clip {clip!r} has no labels list; "
+                "use an empty list for a labelled negative"
+            )
+        labels[clip] = {str(label) for label in clip_labels}
     return labels
 
 

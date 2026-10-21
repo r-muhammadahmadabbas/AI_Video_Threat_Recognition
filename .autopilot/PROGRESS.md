@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-21T22:38:42+00:00
+- Updated: 2026-10-21T22:51:19+00:00
 - Status: running
-- Progress: 2/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 1/8 (Benchmark and holdout baseline) / Task 3 (Add missing-data regression coverage)
-- Last result: approved: Sprint 1.2 approved: a test-backed baseline scoreboard transcribes all 9 stored eval reports with explicit null-plus-reason for missing metrics, plus a disclosed, inert ByteTrack import fallback needed to pass the full-suite gate.
+- Progress: 3/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 2/8 (Person-down accuracy) / Task 1 (Strengthen person-down temporal evidence)
+- Last result: approved: Missing-data regression coverage for the eval harness and scoreboard: P/R/F1 are now recomputed from validated TP/FP/FN counts, missing clip labels fail loudly, and five new regression tests (three of which fail against the pre-change code) prove that missing clips or labels can no longer become perfect metrics.
 
 ## Sprint board
 
@@ -12,8 +12,8 @@
 | --- | --- | --- |
 | Benchmark and holdout baseline | Define benchmark manifest and holdout split | done |
 | Benchmark and holdout baseline | Record baseline metrics from existing results | done |
-| Benchmark and holdout baseline | Add missing-data regression coverage | current |
-| Person-down accuracy | Strengthen person-down temporal evidence | pending |
+| Benchmark and holdout baseline | Add missing-data regression coverage | done |
+| Person-down accuracy | Strengthen person-down temporal evidence | current |
 | Person-down accuracy | Calibrate person-down thresholds | pending |
 | Fight false-alarm reduction | Reduce fight false alarms on normal motion | pending |
 | Fight false-alarm reduction | Improve fight temporal fusion | pending |
