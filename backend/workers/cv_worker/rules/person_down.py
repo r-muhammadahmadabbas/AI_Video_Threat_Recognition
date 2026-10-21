@@ -1,12 +1,13 @@
 """Person-down (horizontal posture) detection (Sprint 5A/5B).
 
 A subject is considered "down" when their bounding box is wider than tall
-by a configurable margin. This is evaluated per-frame on the track's
-current bbox and only for tracks that are inside the bound zone.
+by a configurable margin, the fall model reports a confident fallen posture,
+or the pose skeleton is plausibly horizontal. This is evaluated per-frame on
+the track's current bbox and only for tracks that are inside the bound zone.
 
-The rule is stateful: the aspect ratio must exceed the threshold for
-``min_frames_down`` consecutive frames before triggering, with a per-track
-cooldown to prevent alert storms.
+The rule is stateful: geometry needs ``min_frames_down`` consecutive frames,
+while model and pose evidence are point observations, with a per-track cooldown
+to prevent alert storms.
 """
 
 from __future__ import annotations
@@ -73,13 +74,16 @@ class PersonDownRule(BehaviorRule):
             height = max(1.0, y2 - y1)
             aspect_ratio = width / height
 
-            model_evidence = observation.track.fall_detected and (
-                observation.track.fall_confidence == 0.0
-                or observation.track.fall_confidence
+            model_evidence = (
+                observation.track.fall_detected
+                and observation.track.fall_confidence
                 >= self.config.min_fall_confidence
             )
-            is_down = model_evidence or (
-                aspect_ratio >= self.config.aspect_ratio_threshold
+            pose_evidence = observation.track.pose_fall_detected
+            is_down = (
+                model_evidence
+                or pose_evidence
+                or aspect_ratio >= self.config.aspect_ratio_threshold
             )
 
             if is_down:
@@ -90,10 +94,14 @@ class PersonDownRule(BehaviorRule):
             if not is_down:
                 continue
 
-            # A fall model hit is single-frame evidence (a person lying down
-            # may be sampled only once at upload frame rates); the aspect-ratio
-            # path keeps its multi-frame guard against box jitter.
-            required_frames = 1 if model_evidence else self.config.min_frames_down
+            # Model and pose hits are single-frame evidence (a person lying
+            # down may be sampled only once at upload frame rates); the
+            # aspect-ratio path keeps its multi-frame guard against box jitter.
+            required_frames = (
+                1
+                if model_evidence or pose_evidence
+                else self.config.min_frames_down
+            )
             if episode.consecutive_down_frames < required_frames:
                 continue
             if not self._cooldown_elapsed(episode, timestamp):
@@ -106,7 +114,8 @@ class PersonDownRule(BehaviorRule):
                     timestamp,
                     aspect_ratio,
                     episode.consecutive_down_frames,
-                    model_evidence,
+                    model_evidence=model_evidence,
+                    pose_evidence=pose_evidence,
                 )
             )
 
@@ -124,7 +133,9 @@ class PersonDownRule(BehaviorRule):
         timestamp: float,
         aspect_ratio: float,
         consecutive_down_frames: int,
+        *,
         model_evidence: bool = False,
+        pose_evidence: bool = False,
     ) -> RuleTrigger:
         track = observation.track
         return RuleTrigger(
@@ -142,9 +153,18 @@ class PersonDownRule(BehaviorRule):
                 "threshold": self.config.aspect_ratio_threshold,
                 "consecutive_frames_down": consecutive_down_frames,
                 "min_frames_required": (
-                    1 if model_evidence else self.config.min_frames_down
+                    1
+                    if model_evidence or pose_evidence
+                    else self.config.min_frames_down
                 ),
-                "evidence": "fall_model" if model_evidence else "aspect_ratio",
+                "evidence": (
+                    "fall_model"
+                    if model_evidence
+                    else "pose"
+                    if pose_evidence
+                    else "aspect_ratio"
+                ),
+                "pose_checked": bool(track.pose_checked),
                 "bbox": list(track.bbox),
                 "probe_point": list(observation.probe_point),
             },

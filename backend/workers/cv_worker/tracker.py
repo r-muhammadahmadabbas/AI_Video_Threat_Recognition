@@ -35,6 +35,14 @@ class TrackedObject:
     weapon_confidence: float = 0.0
     fall_detected: bool = False
     fall_confidence: float = 0.0
+    #: True when a pose skeleton was associated with this track on this frame,
+    #: regardless of whether it looked fallen. Rules use it to distinguish
+    #: "pose says upright" from "pose did not run".
+    pose_checked: bool = False
+    #: True when the associated pose skeleton passed the fallen-posture test.
+    #: Kept separate from ``fall_confidence`` because pose evidence has no
+    #: model confidence and must not be reported as a fall-model hit.
+    pose_fall_detected: bool = False
     violence_detected: bool = False
     #: True when the violence model ran on this frame. Frames between model
     #: runs carry ``violence_detected=False`` only because nothing was checked;

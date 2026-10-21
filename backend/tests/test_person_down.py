@@ -44,9 +44,12 @@ class TestPersonDownRule:
     def _obs(
         tracker_id: int,
         bbox: tuple[float, float, float, float],
+        *,
         confidence: float = 0.9,
         fall_detected: bool = False,
         fall_confidence: float = 0.0,
+        pose_checked: bool = False,
+        pose_fall_detected: bool = False,
     ):
         track = MagicMock(spec=TrackedObject)
         track.tracker_id = tracker_id
@@ -54,6 +57,8 @@ class TestPersonDownRule:
         track.confidence = confidence
         track.fall_detected = fall_detected
         track.fall_confidence = fall_confidence
+        track.pose_checked = pose_checked
+        track.pose_fall_detected = pose_fall_detected
         return TrackObservation(
             track=track,
             inside_expanded=True,
@@ -153,7 +158,37 @@ class TestPersonDownRule:
 
         assert triggers == []
 
-    def test_pose_evidence_without_model_confidence_still_triggers(self):
+    def test_pose_evidence_is_reported_as_pose_not_fall_model(self):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(aspect_ratio_threshold=1.2),
+        )
+        bbox = (100.0, 100.0, 200.0, 300.0)
+
+        triggers = rule.update(
+            [
+                self._obs(
+                    1,
+                    bbox,
+                    fall_detected=True,
+                    fall_confidence=0.0,
+                    pose_checked=True,
+                    pose_fall_detected=True,
+                )
+            ],
+            timestamp=1.0,
+        )
+
+        assert len(triggers) == 1
+        assert triggers[0].details["evidence"] == "pose"
+        assert triggers[0].details["min_frames_required"] == 1
+        assert triggers[0].details["pose_checked"] is True
+
+    def test_zero_confidence_fall_flag_without_pose_is_not_evidence(self):
         rule = PersonDownRule(
             rule_id="pd_1",
             rule_name="Person Down",
@@ -169,7 +204,7 @@ class TestPersonDownRule:
             timestamp=1.0,
         )
 
-        assert len(triggers) == 1
+        assert triggers == []
 
     def test_fall_model_evidence_respects_cooldown(self):
         rule = PersonDownRule(

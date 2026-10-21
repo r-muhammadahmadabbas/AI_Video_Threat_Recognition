@@ -15,6 +15,7 @@ grace window).
 
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -31,6 +32,8 @@ def apply_enrichment(snapshot: TrackSnapshot, analysis: FrameAnalysis) -> None:
         track.weapon_confidence = 0.0
         track.fall_detected = False
         track.fall_confidence = 0.0
+        track.pose_checked = False
+        track.pose_fall_detected = False
         track.violence_detected = False
         track.violence_checked = analysis.violence_checked
 
@@ -38,10 +41,13 @@ def apply_enrichment(snapshot: TrackSnapshot, analysis: FrameAnalysis) -> None:
         _attach_falls(track, analysis)
         if analysis.violence:
             track.violence_detected = True
-        if analysis.pose_keypoints is not None and _pose_shows_fall(
-            analysis.pose_keypoints, track.bbox
-        ):
-            track.fall_detected = True
+        if analysis.pose_keypoints is not None:
+            pose_fall = _pose_posture(analysis.pose_keypoints, track.bbox)
+            if pose_fall is not None:
+                track.pose_checked = True
+                track.pose_fall_detected = pose_fall
+                if pose_fall:
+                    track.fall_detected = True
 
 
 def _attach_weapons(track: TrackedObject, analysis: FrameAnalysis) -> None:
@@ -78,15 +84,23 @@ def _attach_falls(track: TrackedObject, analysis: FrameAnalysis) -> None:
             return
 
 
-def _pose_shows_fall(keypoints: np.ndarray, bbox) -> bool:
-    """Whether a pose skeleton inside ``bbox`` has its head at ankle height.
+def _pose_posture(keypoints: np.ndarray, bbox) -> bool | None:
+    """Classify the pose skeleton associated with ``bbox`` as fallen/upright.
 
-    ``keypoints`` has shape ``(N, 17, 2)`` with COCO joint order (nose 0, ankles
-    15/16). A skeleton belongs to the track when its nose falls inside the
-    person's bounding box. Missing joints are reported as ``0`` by the pose
-    runner and are skipped rather than treated as a real coordinate.
+    ``keypoints`` has shape ``(N, 17, 2)`` with COCO joint order. A skeleton
+    belongs to the track when its nose falls inside the person's bounding box.
+    Missing joints are reported as ``0`` by the pose runner and are skipped.
+
+    Returns ``None`` when no skeleton matches the track, otherwise whether the
+    skeleton is plausibly horizontal with the head at ankle height. The
+    plausibility checks matter: a close-up weapon can be misdetected as a
+    person, and the pose model can then invent joints whose hips sit below the
+    ankles. The old nose-vs-ankle test trusted that invalid skeleton and raised
+    a person-down alert, so the joint chain is validated first.
     """
     x1, y1, x2, y2 = bbox
+    bbox_height = max(1.0, y2 - y1)
+    matched = False
 
     for skeleton in keypoints:
         if len(skeleton) < 17:
@@ -97,13 +111,52 @@ def _pose_shows_fall(keypoints: np.ndarray, bbox) -> bool:
             continue
         if not (x1 <= nose_x <= x2 and y1 <= nose_y <= y2):
             continue
+        matched = True
 
-        ankles = [skeleton[15][1], skeleton[16][1]]
-        ankles = [ankle for ankle in ankles if ankle > 0]
-        if not ankles:
+        shoulders = _valid_points(skeleton, (5, 6))
+        hips = _valid_points(skeleton, (11, 12))
+        ankles = _valid_points(skeleton, (15, 16))
+        if not shoulders or not hips or not ankles:
             continue
 
-        if nose_y > (sum(ankles) / len(ankles)) * 0.7:
-            return True
+        shoulder_x, shoulder_y = _centroid(shoulders)
+        hip_x, hip_y = _centroid(hips)
+        _, ankle_y = _centroid(ankles)
 
-    return False
+        # Hips and knees cannot be below the ankles in a real standing or
+        # fallen skeleton; this is the signature of pose hallucination on a
+        # close-up object.
+        if hip_y > ankle_y + 0.15 * bbox_height:
+            continue
+        knees = _valid_points(skeleton, (13, 14))
+        if knees:
+            _, knee_y = _centroid(knees)
+            if knee_y > ankle_y + 0.15 * bbox_height:
+                continue
+
+        torso_length = math.hypot(hip_x - shoulder_x, hip_y - shoulder_y)
+        if torso_length <= 1.0:
+            continue
+
+        torso_horizontal = abs(hip_y - shoulder_y) <= 0.5 * torso_length
+        head_low = nose_y >= 0.7 * ankle_y
+        return bool(torso_horizontal and head_low)
+
+    return False if matched else None
+
+
+def _valid_points(
+    skeleton: np.ndarray, indices: tuple[int, ...]
+) -> list[tuple[float, float]]:
+    return [
+        (float(skeleton[index][0]), float(skeleton[index][1]))
+        for index in indices
+        if skeleton[index][0] > 0 and skeleton[index][1] > 0
+    ]
+
+
+def _centroid(points: list[tuple[float, float]]) -> tuple[float, float]:
+    return (
+        sum(point[0] for point in points) / len(points),
+        sum(point[1] for point in points) / len(points),
+    )

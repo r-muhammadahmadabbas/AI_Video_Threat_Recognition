@@ -94,45 +94,123 @@ class TestViolenceEnrichment:
         assert track.violence_checked is False
 
 
-def keypoints(nose, left_ankle, right_ankle) -> np.ndarray:
+def keypoints(
+    nose,
+    *,
+    left_shoulder=(0.0, 0.0),
+    right_shoulder=(0.0, 0.0),
+    left_hip=(0.0, 0.0),
+    right_hip=(0.0, 0.0),
+    left_knee=(0.0, 0.0),
+    right_knee=(0.0, 0.0),
+    left_ankle=(0.0, 0.0),
+    right_ankle=(0.0, 0.0),
+) -> np.ndarray:
     pose = np.zeros((1, 17, 2), dtype=np.float32)
-    pose[0][0] = nose
-    pose[0][15] = left_ankle
-    pose[0][16] = right_ankle
+    joints = {
+        0: nose,
+        5: left_shoulder,
+        6: right_shoulder,
+        11: left_hip,
+        12: right_hip,
+        13: left_knee,
+        14: right_knee,
+        15: left_ankle,
+        16: right_ankle,
+    }
+    for index, point in joints.items():
+        pose[0][index] = point
     return pose
 
 
 class TestPoseFallEnrichment:
-    def test_head_at_ankle_height_marks_track_fallen(self):
+    def test_horizontal_skeleton_with_head_at_ankle_height_is_fallen(self):
         track = make_track(bbox=(100.0, 100.0, 200.0, 450.0))
-        pose = keypoints(nose=(150.0, 400.0), left_ankle=(150.0, 405.0), right_ankle=(150.0, 405.0))
+        pose = keypoints(
+            nose=(150.0, 400.0),
+            left_shoulder=(130.0, 390.0),
+            right_shoulder=(150.0, 390.0),
+            left_hip=(150.0, 395.0),
+            right_hip=(170.0, 395.0),
+            left_knee=(160.0, 400.0),
+            right_knee=(180.0, 400.0),
+            left_ankle=(170.0, 405.0),
+            right_ankle=(190.0, 405.0),
+        )
 
         apply_enrichment(snapshot(track), FrameAnalysis(pose_keypoints=pose))
 
+        assert track.pose_checked is True
+        assert track.pose_fall_detected is True
         assert track.fall_detected is True
+        assert track.fall_confidence == 0.0
 
     def test_standing_skeleton_is_not_fallen(self):
         track = make_track(bbox=(100.0, 100.0, 200.0, 450.0))
-        pose = keypoints(nose=(150.0, 150.0), left_ankle=(150.0, 400.0), right_ankle=(150.0, 400.0))
+        pose = keypoints(
+            nose=(150.0, 150.0),
+            left_shoulder=(140.0, 200.0),
+            right_shoulder=(160.0, 200.0),
+            left_hip=(140.0, 300.0),
+            right_hip=(160.0, 300.0),
+            left_knee=(140.0, 380.0),
+            right_knee=(160.0, 380.0),
+            left_ankle=(140.0, 420.0),
+            right_ankle=(160.0, 420.0),
+        )
 
         apply_enrichment(snapshot(track), FrameAnalysis(pose_keypoints=pose))
 
+        assert track.pose_checked is True
+        assert track.pose_fall_detected is False
         assert track.fall_detected is False
 
     def test_skeleton_outside_the_box_is_ignored(self):
         track = make_track(bbox=(100.0, 100.0, 200.0, 450.0))
-        pose = keypoints(nose=(500.0, 400.0), left_ankle=(500.0, 405.0), right_ankle=(500.0, 405.0))
+        pose = keypoints(
+            nose=(500.0, 400.0),
+            left_ankle=(500.0, 405.0),
+            right_ankle=(500.0, 405.0),
+        )
 
         apply_enrichment(snapshot(track), FrameAnalysis(pose_keypoints=pose))
 
+        assert track.pose_checked is False
         assert track.fall_detected is False
 
-    def test_skeleton_without_ankles_is_ignored(self):
+    def test_skeleton_without_ankles_is_not_fallen(self):
         track = make_track(bbox=(100.0, 100.0, 200.0, 450.0))
-        pose = keypoints(nose=(150.0, 400.0), left_ankle=(0.0, 0.0), right_ankle=(0.0, 0.0))
+        pose = keypoints(
+            nose=(150.0, 400.0),
+            left_shoulder=(130.0, 390.0),
+            right_shoulder=(150.0, 390.0),
+            left_hip=(150.0, 395.0),
+            right_hip=(170.0, 395.0),
+        )
 
         apply_enrichment(snapshot(track), FrameAnalysis(pose_keypoints=pose))
 
+        assert track.pose_checked is True
+        assert track.fall_detected is False
+
+    def test_implausible_skeleton_from_weapon_closeup_is_not_fallen(self):
+        track = make_track(bbox=(0.0, 1000.0, 1400.0, 2800.0))
+        pose = keypoints(
+            nose=(188.8, 1930.8),
+            left_shoulder=(164.5, 2185.1),
+            right_shoulder=(79.8, 2225.2),
+            left_hip=(254.9, 3005.6),
+            right_hip=(145.4, 3050.0),
+            left_knee=(352.9, 2889.7),
+            right_knee=(310.0, 2971.5),
+            left_ankle=(291.3, 2687.0),
+            right_ankle=(306.9, 2753.8),
+        )
+
+        apply_enrichment(snapshot(track), FrameAnalysis(pose_keypoints=pose))
+
+        assert track.pose_checked is True
+        assert track.pose_fall_detected is False
         assert track.fall_detected is False
 
 class TestFallAssociation:
