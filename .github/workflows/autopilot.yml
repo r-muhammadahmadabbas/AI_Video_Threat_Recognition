@@ -157,7 +157,7 @@ jobs:
 
   promote:
     needs: [preflight, build]
-    if: always() && needs.preflight.outputs.run == 'true'
+    if: always() && needs.preflight.outputs.run == 'true' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 90
     permissions:
@@ -216,6 +216,7 @@ jobs:
           path: .autopilot
 
       - name: Run promote phase
+        id: promote
         working-directory: backend
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -230,7 +231,7 @@ jobs:
         run: python -m scripts.autopilot.status --github-summary
 
       - name: Queue next sprint
-        if: always()
+        if: always() && steps.promote.outcome == 'success'
         working-directory: backend
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
