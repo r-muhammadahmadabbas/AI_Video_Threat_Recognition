@@ -117,7 +117,8 @@ jobs:
         with:
           name: autopilot-${{ github.run_id }}
           path: .autopilot/
-          if-no-files-found: warn
+          include-hidden-files: true
+          if-no-files-found: error
 
   promote:
     needs: [preflight, build]
