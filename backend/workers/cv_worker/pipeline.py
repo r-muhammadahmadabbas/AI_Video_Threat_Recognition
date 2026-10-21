@@ -46,8 +46,11 @@ if TYPE_CHECKING:
 #: The synthetic zone every upload rule is bound to.
 UPLOAD_ZONE_ID = "upload-full-frame"
 
-#: Fall-model confidence tuned on URFD at 5 fps: 0.40 gave 0.77 recall at
-#: 0.43 precision, versus 0.25 which only traded precision for no recall gain.
+#: Fall-model run threshold. Kept low so weak "fallen" hits can still veto
+#: fight alerts; person_down incidents themselves require a confident hit
+#: (PersonDownConfig.min_fall_confidence, 0.60). On URFD at 5 fps that scored
+#: P=0.49 R=0.70 F1=0.58, versus P=0.43 R=0.77 F1=0.55 when every 0.40 hit
+#: raised an incident.
 FALL_CONFIDENCE = 0.40
 
 #: Consecutive violence-model hits required before an event opens. A single
