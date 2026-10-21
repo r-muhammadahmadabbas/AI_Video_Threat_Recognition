@@ -1,17 +1,21 @@
 # Autopilot progress
 
-- Updated: 2026-10-21T21:33:54+00:00
+- Updated: 2026-10-21T22:02:54+00:00
 - Status: running
-- Progress: 0/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 1/8 (Benchmark and holdout baseline) / Task 1 (Define benchmark manifest and holdout split)
-- Last result: blocked: deterministic gates failed
+- Progress: 1/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 1/8 (Benchmark and holdout baseline) / Task 2 (Record baseline metrics from existing results)
+- Last result: blocked: git apply --check failed: error: patch failed: .autopilot/PROGRESS.md:1
+error: .autopilot/PROGRESS.md: patch does not apply
+error: patch failed: .autopilot/state.json:2
+error: .autopilot/state.json: patch does not apply
+
 
 ## Sprint board
 
 | Sprint | Task | Status |
 | --- | --- | --- |
-| Benchmark and holdout baseline | Define benchmark manifest and holdout split | current |
-| Benchmark and holdout baseline | Record baseline metrics from existing results | pending |
+| Benchmark and holdout baseline | Define benchmark manifest and holdout split | done |
+| Benchmark and holdout baseline | Record baseline metrics from existing results | current |
 | Benchmark and holdout baseline | Add missing-data regression coverage | pending |
 | Person-down accuracy | Strengthen person-down temporal evidence | pending |
 | Person-down accuracy | Calibrate person-down thresholds | pending |
