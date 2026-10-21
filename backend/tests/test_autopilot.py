@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from scripts.autopilot.orchestrator import (
     MODEL_CHAINS,
     SPRINTS,
@@ -13,6 +15,17 @@ from scripts.autopilot.orchestrator import (
     validate_changes,
     validate_decision,
 )
+
+
+def test_workflow_packages_hidden_autopilot_artifact() -> None:
+    workflow = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "autopilot.yml"
+    text = workflow.read_text(encoding="utf-8")
+    assert text.count("name: autopilot-${{ github.run_id }}") == 2
+    assert "path: .autopilot/" in text
+    assert "include-hidden-files: true" in text
+    assert "if-no-files-found: error" in text
+    assert ".autopilot/state.json" in text
+    assert ".autopilot/outcome.json" in text
 
 
 def test_model_chains_cover_four_roles_with_fallbacks() -> None:
