@@ -2,39 +2,40 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-21T23:04:29+00:00",
-  "sprint_index": 1,
-  "task_index": 1,
+  "updated_at": "2026-10-21T23:17:26+00:00",
+  "sprint_index": 2,
+  "task_index": 0,
   "attempts": 0,
   "completed": [
     "sprint-1.1",
     "sprint-1.2",
     "sprint-1.3",
-    "sprint-2.1"
+    "sprint-2.1",
+    "sprint-2.2"
   ],
   "blocked": [],
   "last_result": {
     "status": "approved",
-    "task": "sprint-2.1",
-    "reason": "Small, test-backed person-down hard-negative fix: upright-pose veto of geometry-only evidence plus track-persistence guard, with fall-model/pose recall paths preserved; all gates pass and no accuracy claim is made because model weights are missing."
+    "task": "sprint-2.2",
+    "reason": "Adds a test-backed, leakage-safe validation-only threshold calibration path plus an honest not_run calibration report and updated baseline; no production thresholds changed and no accuracy claimed because model weights and labelled validation/holdout clips are absent."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 254
+    "diff_lines": 396
   },
   "metrics": {},
   "runs": 0,
   "current": {
-    "sprint_index": 1,
-    "task_index": 1,
-    "sprint_id": "sprint-2",
-    "sprint_name": "Person-down accuracy",
-    "rule": "person_down",
-    "task_id": "sprint-2.2",
-    "task_title": "Calibrate person-down thresholds",
-    "goal": "Calibrate only on the validation split, then report validation and holdout metrics. Do not tune on the test or holdout labels.",
-    "exit": "Calibration evidence, no regression, and updated baseline."
+    "sprint_index": 2,
+    "task_index": 0,
+    "sprint_id": "sprint-3",
+    "sprint_name": "Fight false-alarm reduction",
+    "rule": "fight",
+    "task_id": "sprint-3.1",
+    "task_title": "Reduce fight false alarms on normal motion",
+    "goal": "Improve fight event precision by suppressing normal fast motion, crowd movement, hugging, and camera shake without losing true positive events.",
+    "exit": "Targeted tests and false-alarm evidence."
   }
 }

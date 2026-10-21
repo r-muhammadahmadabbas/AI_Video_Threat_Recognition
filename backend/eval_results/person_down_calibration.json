@@ -1,0 +1,17 @@
+{
+  "rule": "person_down",
+  "event_type": "person_down",
+  "status": "not_run",
+  "reason": "model weights, labelled validation/holdout clips, and a validation/holdout split manifest are absent; the stored c40/c60 reports cover the whole URFD benchmark, so they cannot serve as split evidence",
+  "selection_metric": "f1",
+  "selected_threshold": null,
+  "validation": null,
+  "holdout": null,
+  "current_thresholds": {
+    "aspect_ratio_threshold": 1.2,
+    "min_frames_down": 3,
+    "min_track_frames": 3,
+    "min_fall_confidence": 0.6,
+    "upright_pose_veto_seconds": 2.0
+  }
+}

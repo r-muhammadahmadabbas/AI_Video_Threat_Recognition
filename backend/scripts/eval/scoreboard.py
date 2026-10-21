@@ -30,6 +30,7 @@ REPRODUCTION_NOTES = {
         "files do not reproduce these counts"
     ),
 }
+CALIBRATION_FILENAME = "person_down_calibration.json"
 
 
 def _missing(row: dict[str, Any], field: str, reason: str) -> None:
@@ -129,6 +130,25 @@ def load_reports(results_dir: Path) -> list[tuple[Path, dict[str, Any]]]:
     return reports
 
 
+def _calibration_notes(results_dir: Path) -> list[str]:
+    """Surface the person-down calibration status without inventing metrics."""
+    path = results_dir / CALIBRATION_FILENAME
+    if not path.is_file():
+        return []
+    data = json.loads(path.read_text(encoding="utf-8"))
+    notes = [
+        f"person-down threshold calibration status: {data.get('status', 'unknown')}"
+    ]
+    if data.get("reason"):
+        notes.append(f"person-down calibration reason: {data['reason']}")
+    if data.get("selected_threshold") is not None:
+        notes.append(
+            "person-down threshold selected on validation: "
+            f"{data['selected_threshold']}"
+        )
+    return notes
+
+
 def build_scoreboard(results_dir: Path) -> dict[str, Any]:
     rows = [_row_from_report(path, data) for path, data in load_reports(results_dir)]
     notes = [
@@ -143,6 +163,7 @@ def build_scoreboard(results_dir: Path) -> dict[str, Any]:
         for row in rows
         if row["benchmark"] in REPRODUCTION_NOTES
     )
+    notes.extend(_calibration_notes(results_dir))
     return {"generated_from": SOURCE_DIRECTORY, "notes": notes, "benchmarks": rows}
 
 

@@ -6,6 +6,8 @@ Generated from `backend/eval_results` by `python -m scripts.eval.scoreboard`.
 - null means the metric was not available in the stored results; the reason is recorded in each row's missing map
 - false alarms per 10 minutes are the stored per-minute rate scaled by 10
 - fall_events_urfd_5fps_overlap: no matching raw prediction file is stored, and the c40/c60 prediction files do not reproduce these counts
+- person-down threshold calibration status: not_run
+- person-down calibration reason: model weights, labelled validation/holdout clips, and a validation/holdout split manifest are absent; the stored c40/c60 reports cover the whole URFD benchmark, so they cannot serve as split evidence
 
 | Benchmark | Kind | Precision | Recall | F1 | False alarms / 10 min | Latency (ms) | mAP |
 | --- | --- | --- | --- | --- | --- | --- | --- |
