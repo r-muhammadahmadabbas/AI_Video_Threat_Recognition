@@ -123,6 +123,30 @@ class TestRuleEvents:
         assert down_events[0].timestamp == 2.0
         assert down_events[0].details["rule_name"] == "Person down"
 
+    def test_wide_box_with_upright_pose_is_not_person_down(
+        self, pipeline, analyzer
+    ):
+        # A crouch, bend or shooting stance can widen the person box. The
+        # skeleton still shows a standing posture, so geometry must not raise
+        # a person-down incident.
+        analyzer.persons = [person(bbox=(100.0, 100.0, 400.0, 300.0))]
+        pose = np.zeros((1, 17, 2), dtype=np.float32)
+        pose[0][0] = (250.0, 120.0)  # nose
+        pose[0][5] = (240.0, 145.0)  # shoulders
+        pose[0][6] = (260.0, 145.0)
+        pose[0][11] = (240.0, 200.0)  # hips
+        pose[0][12] = (260.0, 200.0)
+        pose[0][13] = (240.0, 255.0)  # knees
+        pose[0][14] = (260.0, 255.0)
+        pose[0][15] = (240.0, 290.0)  # ankles
+        pose[0][16] = (260.0, 290.0)
+        analyzer.pose = pose
+
+        for second in range(5):
+            pipeline.process_frame(FRAME, float(second))
+
+        assert [e for e in pipeline.events if e.rule == "person_down"] == []
+
     def test_violence_is_emitted_once_per_episode(self, pipeline, analyzer):
         analyzer.persons = [person()]
 

@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-21T22:51:19+00:00
+- Updated: 2026-10-21T23:04:29+00:00
 - Status: running
-- Progress: 3/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 2/8 (Person-down accuracy) / Task 1 (Strengthen person-down temporal evidence)
-- Last result: approved: Missing-data regression coverage for the eval harness and scoreboard: P/R/F1 are now recomputed from validated TP/FP/FN counts, missing clip labels fail loudly, and five new regression tests (three of which fail against the pre-change code) prove that missing clips or labels can no longer become perfect metrics.
+- Progress: 4/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 2/8 (Person-down accuracy) / Task 2 (Calibrate person-down thresholds)
+- Last result: approved: Small, test-backed person-down hard-negative fix: upright-pose veto of geometry-only evidence plus track-persistence guard, with fall-model/pose recall paths preserved; all gates pass and no accuracy claim is made because model weights are missing.
 
 ## Sprint board
 
@@ -13,8 +13,8 @@
 | Benchmark and holdout baseline | Define benchmark manifest and holdout split | done |
 | Benchmark and holdout baseline | Record baseline metrics from existing results | done |
 | Benchmark and holdout baseline | Add missing-data regression coverage | done |
-| Person-down accuracy | Strengthen person-down temporal evidence | current |
-| Person-down accuracy | Calibrate person-down thresholds | pending |
+| Person-down accuracy | Strengthen person-down temporal evidence | done |
+| Person-down accuracy | Calibrate person-down thresholds | current |
 | Fight false-alarm reduction | Reduce fight false alarms on normal motion | pending |
 | Fight false-alarm reduction | Improve fight temporal fusion | pending |
 | Fall accuracy | Improve fall recall without adding false alarms | pending |

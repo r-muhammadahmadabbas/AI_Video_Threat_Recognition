@@ -21,6 +21,12 @@ class TestPersonDownConfig:
         assert cfg.min_confidence == 0.25
         assert cfg.cooldown_seconds == 60.0
         assert cfg.min_frames_down == 3
+        assert cfg.min_track_frames == 3
+        assert cfg.upright_pose_veto_seconds == 2.0
+
+    def test_rejects_negative_upright_pose_veto(self):
+        with pytest.raises(ValueError, match="upright_pose_veto_seconds"):
+            PersonDownConfig(upright_pose_veto_seconds=-0.1)
 
     def test_rejects_aspect_ratio_at_or_below_one(self):
         with pytest.raises(ValueError, match="aspect_ratio_threshold"):
@@ -50,6 +56,7 @@ class TestPersonDownRule:
         fall_confidence: float = 0.0,
         pose_checked: bool = False,
         pose_fall_detected: bool = False,
+        frames_seen: int = 10,
     ):
         track = MagicMock(spec=TrackedObject)
         track.tracker_id = tracker_id
@@ -59,6 +66,7 @@ class TestPersonDownRule:
         track.fall_confidence = fall_confidence
         track.pose_checked = pose_checked
         track.pose_fall_detected = pose_fall_detected
+        track.frames_seen = frames_seen
         return TrackObservation(
             track=track,
             inside_expanded=True,
@@ -205,6 +213,172 @@ class TestPersonDownRule:
         )
 
         assert triggers == []
+
+    @pytest.mark.parametrize(
+        "hard_negative",
+        ["crouching", "sitting", "bending", "shooting stance"],
+    )
+    def test_checked_upright_pose_vetoes_wide_box_hard_negatives(
+        self, hard_negative
+    ):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(
+                aspect_ratio_threshold=1.2,
+                min_frames_down=1,
+                min_track_frames=1,
+                upright_pose_veto_seconds=5.0,
+            ),
+        )
+        bbox = (100.0, 100.0, 300.0, 200.0)  # ratio 2.0
+
+        triggers = rule.update(
+            [
+                self._obs(
+                    1,
+                    bbox,
+                    pose_checked=True,
+                    pose_fall_detected=False,
+                )
+            ],
+            timestamp=1.0,
+        )
+
+        assert triggers == [], hard_negative
+
+    def test_recent_upright_pose_keeps_vetoing_between_pose_frames(self):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(
+                aspect_ratio_threshold=1.2,
+                min_frames_down=2,
+                min_track_frames=1,
+                upright_pose_veto_seconds=2.0,
+                cooldown_seconds=10.0,
+            ),
+        )
+        bbox = (100.0, 100.0, 300.0, 200.0)  # ratio 2.0
+
+        # Pose runs every few frames. The last upright verdict must keep
+        # vetoing the wide box even on frames where pose did not run.
+        assert (
+            rule.update(
+                [self._obs(1, bbox, pose_checked=True)], timestamp=0.0
+            )
+            == []
+        )
+        assert rule.update([self._obs(1, bbox)], timestamp=1.0) == []
+        assert rule.update([self._obs(1, bbox)], timestamp=2.0) == []
+
+        # Veto expired; geometry now needs its own two-frame persistence.
+        assert rule.update([self._obs(1, bbox)], timestamp=4.0) == []
+        triggers = rule.update([self._obs(1, bbox)], timestamp=5.0)
+
+        assert len(triggers) == 1
+        assert triggers[0].details["evidence"] == "aspect_ratio"
+
+    def test_fallen_pose_clears_upright_veto_immediately(self):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(upright_pose_veto_seconds=5.0),
+        )
+        bbox = (100.0, 100.0, 300.0, 200.0)  # ratio 2.0
+
+        assert (
+            rule.update(
+                [self._obs(1, bbox, pose_checked=True)], timestamp=1.0
+            )
+            == []
+        )
+        triggers = rule.update(
+            [
+                self._obs(
+                    1,
+                    bbox,
+                    pose_checked=True,
+                    pose_fall_detected=True,
+                )
+            ],
+            timestamp=2.0,
+        )
+
+        assert len(triggers) == 1
+        assert triggers[0].details["evidence"] == "pose"
+
+    def test_confident_fall_model_overrides_upright_pose_veto(self):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(upright_pose_veto_seconds=5.0),
+        )
+        bbox = (100.0, 100.0, 200.0, 300.0)  # upright box
+
+        triggers = rule.update(
+            [
+                self._obs(
+                    1,
+                    bbox,
+                    fall_detected=True,
+                    fall_confidence=0.9,
+                    pose_checked=True,
+                    pose_fall_detected=False,
+                )
+            ],
+            timestamp=1.0,
+        )
+
+        assert len(triggers) == 1
+        assert triggers[0].details["evidence"] == "fall_model"
+
+    def test_geometry_waits_for_track_to_persist(self):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(
+                aspect_ratio_threshold=1.2,
+                min_frames_down=1,
+                min_track_frames=3,
+                cooldown_seconds=10.0,
+            ),
+        )
+        bbox = (100.0, 100.0, 300.0, 200.0)  # ratio 2.0
+
+        assert (
+            rule.update(
+                [self._obs(1, bbox, frames_seen=1)], timestamp=1.0
+            )
+            == []
+        )
+        assert (
+            rule.update(
+                [self._obs(1, bbox, frames_seen=2)], timestamp=2.0
+            )
+            == []
+        )
+        triggers = rule.update(
+            [self._obs(1, bbox, frames_seen=3)], timestamp=3.0
+        )
+
+        assert len(triggers) == 1
+        assert triggers[0].details["evidence"] == "aspect_ratio"
 
     def test_fall_model_evidence_respects_cooldown(self):
         rule = PersonDownRule(

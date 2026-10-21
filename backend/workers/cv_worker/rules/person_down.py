@@ -5,9 +5,16 @@ by a configurable margin, the fall model reports a confident fallen posture,
 or the pose skeleton is plausibly horizontal. This is evaluated per-frame on
 the track's current bbox and only for tracks that are inside the bound zone.
 
-The rule is stateful: geometry needs ``min_frames_down`` consecutive frames,
-while model and pose evidence are point observations, with a per-track cooldown
-to prevent alert storms.
+The rule is stateful: geometry needs ``min_frames_down`` consecutive frames on
+a track that has itself persisted for ``min_track_frames`` observations, while
+model and pose evidence are point observations, with a per-track cooldown to
+prevent alert storms.
+
+A checked, upright pose vetoes geometry-only evidence for a short window. Wide
+boxes are the normal signature of crouching, sitting, bending and a shooting
+stance, so without the veto those hard negatives would trip the aspect-ratio
+fallback. Confident fall-model and fallen-pose evidence still bypass the veto
+and its track-persistence guard.
 """
 
 from __future__ import annotations
@@ -28,6 +35,8 @@ class _DownEpisode:
 
     consecutive_down_frames: int = 0
     last_triggered_at: float | None = None
+    last_pose_checked_at: float | None = None
+    last_pose_fall_detected: bool = False
 
 
 @dataclass
@@ -79,11 +88,28 @@ class PersonDownRule(BehaviorRule):
                 and observation.track.fall_confidence
                 >= self.config.min_fall_confidence
             )
-            pose_evidence = observation.track.pose_fall_detected
+            pose_evidence = bool(observation.track.pose_fall_detected)
+
+            if observation.track.pose_checked:
+                episode.last_pose_checked_at = timestamp
+                episode.last_pose_fall_detected = pose_evidence
+
+            # Pose runs less often than person detection. Remember the last
+            # verdict long enough to cover that cadence, otherwise a crouch or
+            # shooting stance can fill a geometry streak between pose frames.
+            pose_upright_recent = (
+                episode.last_pose_checked_at is not None
+                and not episode.last_pose_fall_detected
+                and timestamp - episode.last_pose_checked_at
+                <= self.config.upright_pose_veto_seconds
+            )
+            geometry_evidence = (
+                aspect_ratio >= self.config.aspect_ratio_threshold
+            )
             is_down = (
                 model_evidence
                 or pose_evidence
-                or aspect_ratio >= self.config.aspect_ratio_threshold
+                or (geometry_evidence and not pose_upright_recent)
             )
 
             if is_down:
@@ -96,13 +122,19 @@ class PersonDownRule(BehaviorRule):
 
             # Model and pose hits are single-frame evidence (a person lying
             # down may be sampled only once at upload frame rates); the
-            # aspect-ratio path keeps its multi-frame guard against box jitter.
+            # aspect-ratio path keeps its multi-frame and track-age guards
+            # against box jitter and short-lived misdetections.
             required_frames = (
                 1
                 if model_evidence or pose_evidence
                 else self.config.min_frames_down
             )
             if episode.consecutive_down_frames < required_frames:
+                continue
+            if (
+                not (model_evidence or pose_evidence)
+                and observation.track.frames_seen < self.config.min_track_frames
+            ):
                 continue
             if not self._cooldown_elapsed(episode, timestamp):
                 continue

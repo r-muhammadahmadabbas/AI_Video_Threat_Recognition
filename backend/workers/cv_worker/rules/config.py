@@ -132,6 +132,16 @@ class PersonDownConfig(BaseModel):
         cooldown_seconds: minimum gap between two incidents for the same track.
         min_frames_down: consecutive frames the ratio must exceed the threshold
             before triggering. Filters single-frame pose jitter.
+        min_track_frames: total observations a track must have before geometry
+            alone can raise an incident. A wide box on a brand-new track is
+            usually box jitter or a misdetected object, not a person who has
+            been lying still; confident fall/pose evidence still bypasses this.
+        upright_pose_veto_seconds: how long a checked, upright pose keeps
+            vetoing geometry-only evidence. Crouching, sitting, bending and a
+            shooting stance can all make the box wide while the skeleton is
+            upright. Pose runs less often than person detection, so the veto
+            has to outlive the pose frame; when the window expires, geometry
+            still works as a fallback for cameras without usable pose.
         min_fall_confidence: minimum fall-model confidence that counts as
             evidence. The model runs at a lower threshold so weak hits can
             still veto fight alerts; only confident hits raise an incident.
@@ -146,6 +156,8 @@ class PersonDownConfig(BaseModel):
     min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
     cooldown_seconds: float = Field(default=60.0, ge=0.0)
     min_frames_down: int = Field(default=3, ge=1)
+    min_track_frames: int = Field(default=3, ge=1)
+    upright_pose_veto_seconds: float = Field(default=2.0, ge=0.0)
     min_fall_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
     entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
