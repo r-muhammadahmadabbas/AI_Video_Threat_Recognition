@@ -2,36 +2,37 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-21T22:02:54+00:00",
+  "updated_at": "2026-10-21T22:38:42+00:00",
   "sprint_index": 0,
-  "task_index": 1,
-  "attempts": 1,
+  "task_index": 2,
+  "attempts": 0,
   "completed": [
-    "sprint-1.1"
+    "sprint-1.1",
+    "sprint-1.2"
   ],
   "blocked": [],
   "last_result": {
-    "status": "blocked",
+    "status": "approved",
     "task": "sprint-1.2",
-    "reason": "git apply --check failed: error: patch failed: .autopilot/PROGRESS.md:1\nerror: .autopilot/PROGRESS.md: patch does not apply\nerror: patch failed: .autopilot/state.json:2\nerror: .autopilot/state.json: patch does not apply\n"
+    "reason": "Sprint 1.2 approved: a test-backed baseline scoreboard transcribes all 9 stored eval reports with explicit null-plus-reason for missing metrics, plus a disclosed, inert ByteTrack import fallback needed to pass the full-suite gate."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 400
+    "diff_lines": 399
   },
   "metrics": {},
   "runs": 0,
   "current": {
     "sprint_index": 0,
-    "task_index": 1,
+    "task_index": 2,
     "sprint_id": "sprint-1",
     "sprint_name": "Benchmark and holdout baseline",
     "rule": "all",
-    "task_id": "sprint-1.2",
-    "task_title": "Record baseline metrics from existing results",
-    "goal": "Read backend/eval_results/ and the offline harness, then record a scoreboard with precision, recall, F1, false alarms per 10 minutes, and latency where available. Use null plus a reason for missing metrics.",
-    "exit": "Baseline scoreboard committed with explicit missing values."
+    "task_id": "sprint-1.3",
+    "task_title": "Add missing-data regression coverage",
+    "goal": "Add tests that prove the benchmark and scoreboard do not silently turn missing clips or labels into perfect metrics.",
+    "exit": "Regression tests fail on fabricated or absent metrics."
   }
 }

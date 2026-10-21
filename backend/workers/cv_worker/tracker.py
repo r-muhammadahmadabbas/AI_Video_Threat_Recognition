@@ -109,6 +109,97 @@ class Tracker(ABC):
         pass
 
 
+def _box_iou(a: np.ndarray, b: np.ndarray) -> float:
+    x1, y1 = max(a[0], b[0]), max(a[1], b[1])
+    x2, y2 = min(a[2], b[2]), min(a[3], b[3])
+    intersection = max(0.0, x2 - x1) * max(0.0, y2 - y1)
+    union = (
+        max(0.0, a[2] - a[0]) * max(0.0, a[3] - a[1])
+        + max(0.0, b[2] - b[0]) * max(0.0, b[3] - b[1])
+        - intersection
+    )
+    return float(intersection / union) if union else 0.0
+
+
+@dataclass
+class _CompatTrack:
+    bbox: np.ndarray
+    velocity: np.ndarray
+    missed: int = 0
+
+
+class _CompatByteTrack:
+    """IoU/constant-velocity fallback for supervision releases without ByteTrack."""
+
+    def __init__(
+        self,
+        track_activation_threshold: float = 0.25,
+        lost_track_buffer: int = 30,
+        minimum_matching_threshold: float = 0.8,
+        frame_rate: int = 30,
+        **_,
+    ):
+        self._activation = track_activation_threshold
+        self._matching = minimum_matching_threshold
+        self._max_lost = int(frame_rate / 30.0 * lost_track_buffer)
+        self.reset()
+
+    def reset(self) -> None:
+        self._tracks: dict[int, _CompatTrack] = {}
+        self._next_id = 1
+
+    def update_with_detections(self, detections):
+        import supervision as sv  # noqa: PLC0415
+
+        boxes = np.asarray(detections.xyxy, dtype=float)
+        scores = np.asarray(detections.confidence, dtype=float)
+        class_ids = (
+            np.asarray(detections.class_id, dtype=int)
+            if detections.class_id is not None
+            else np.zeros(len(boxes), dtype=int)
+        )
+        ids = np.full(len(boxes), -1, dtype=int)
+        candidates = []
+        for track_id, track in self._tracks.items():
+            predicted = track.bbox + track.velocity
+            for det_index, box in enumerate(boxes):
+                iou = _box_iou(predicted, box)
+                if iou >= self._matching:
+                    candidates.append((iou, track_id, det_index))
+        used_tracks: set[int] = set()
+        used_detections: set[int] = set()
+        for _, track_id, det_index in sorted(candidates, key=lambda item: item[0], reverse=True):
+            if track_id in used_tracks or det_index in used_detections:
+                continue
+            track = self._tracks[track_id]
+            track.velocity = boxes[det_index] - track.bbox
+            track.bbox = boxes[det_index].copy()
+            track.missed = 0
+            ids[det_index] = track_id
+            used_tracks.add(track_id)
+            used_detections.add(det_index)
+        for det_index, score in enumerate(scores):
+            if det_index not in used_detections and score > self._activation:
+                track_id = self._next_id
+                self._next_id += 1
+                self._tracks[track_id] = _CompatTrack(boxes[det_index].copy(), np.zeros(4))
+                ids[det_index] = track_id
+                used_detections.add(det_index)
+        for track_id in list(self._tracks):
+            if track_id in used_tracks or track_id in ids:
+                continue
+            self._tracks[track_id].missed += 1
+            if self._tracks[track_id].missed > self._max_lost:
+                del self._tracks[track_id]
+        keep = ids >= 0
+        return sv.Detections(
+            xyxy=boxes[keep],
+            confidence=scores[keep],
+            class_id=class_ids[keep],
+            tracker_id=ids[keep],
+        )
+
+
 class ByteTrackTracker(Tracker):
     """Camera-local multi-object tracker built on supervision ByteTrack.
 
@@ -138,8 +229,11 @@ class ByteTrackTracker(Tracker):
 
     def _reset_backend(self) -> None:
         # supervision deprecated ByteTrack at the top-level sv.ByteTrack alias
-        # in 0.28.0; the implementation now lives in this module path.
-        from supervision.tracker.byte_tracker.core import ByteTrack  # noqa: PLC0415
+        # in 0.28.0; newer releases removed it, so keep an in-repo fallback.
+        try:
+            from supervision.tracker.byte_tracker.core import ByteTrack  # noqa: PLC0415
+        except ModuleNotFoundError:
+            ByteTrack = _CompatByteTrack  # noqa: N806
 
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", FutureWarning)
