@@ -258,12 +258,25 @@ class FightConfig(BaseModel):
     requiring a short run of consecutive positive frames and then opening one
     trigger per episode, with a cooldown.
 
+    Because the classifier is frame-level, it also flags normal fast motion,
+    crowds, hugging and camera shake. The interaction gate therefore requires
+    two nearby moving people whose velocities differ, not an isolated track.
     Attributes:
         min_consecutive_frames: consecutive model-positive frames before a
             trigger opens. Two hits at the worker's cadence filter single-frame
             blips (someone crouching fast) without missing real fights.
         min_confidence: minimum person confidence to attribute the event to a
             track. The classifier itself has already made the decision.
+        max_zone_tracks: maximum eligible tracks before the frame is treated
+            as crowd movement rather than a fight, since a frame-level
+            classifier marks everyone in a busy scene.
+        max_pair_distance_px: maximum distance between two participants for
+            their motion to count as an interaction.
+        min_movement_px_per_s: each participant must move at least this fast;
+            a fast person passing a stationary one is not a fight.
+        min_relative_speed_px_per_s: the participants' velocity vectors must
+            differ by this much; people moving together or hugging fail.
+        speed_window_seconds: track history used to estimate velocity.
         point: which point of the bbox to use for zone containment.
         entry_margin/exit_margin: hysteresis multipliers used to derive this
             rule's containment rings, as for every zone-bound rule.
@@ -282,6 +295,11 @@ class FightConfig(BaseModel):
 
     min_consecutive_frames: int = Field(default=2, ge=1)
     min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
+    max_zone_tracks: int = Field(default=8, ge=2)
+    max_pair_distance_px: float = Field(default=150.0, gt=0.0)
+    min_movement_px_per_s: float = Field(default=20.0, ge=0.0)
+    min_relative_speed_px_per_s: float = Field(default=60.0, ge=0.0)
+    speed_window_seconds: float = Field(default=1.0, gt=0.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
     entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
     exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)

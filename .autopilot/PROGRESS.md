@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-21T23:17:26+00:00
+- Updated: 2026-10-21T23:33:39+00:00
 - Status: running
-- Progress: 5/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 3/8 (Fight false-alarm reduction) / Task 1 (Reduce fight false alarms on normal motion)
-- Last result: approved: Adds a test-backed, leakage-safe validation-only threshold calibration path plus an honest not_run calibration report and updated baseline; no production thresholds changed and no accuracy claimed because model weights and labelled validation/holdout clips are absent.
+- Progress: 6/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 3/8 (Fight false-alarm reduction) / Task 2 (Improve fight temporal fusion)
+- Last result: approved: Fight rule now requires a nearby moving pair with differing velocities before firing, suppressing fast single-person motion, hugging, camera shake, and crowd movement, with non-vacuous unit tests and preserved true-positive coverage; accuracy was not measured because model weights and labelled clips are missing.
 
 ## Sprint board
 
@@ -15,8 +15,8 @@
 | Benchmark and holdout baseline | Add missing-data regression coverage | done |
 | Person-down accuracy | Strengthen person-down temporal evidence | done |
 | Person-down accuracy | Calibrate person-down thresholds | done |
-| Fight false-alarm reduction | Reduce fight false alarms on normal motion | current |
-| Fight false-alarm reduction | Improve fight temporal fusion | pending |
+| Fight false-alarm reduction | Reduce fight false alarms on normal motion | done |
+| Fight false-alarm reduction | Improve fight temporal fusion | current |
 | Fall accuracy | Improve fall recall without adding false alarms | pending |
 | Fall accuracy | Calibrate fall confidence | pending |
 | Loitering and crowd accuracy | Improve loitering trajectory evidence | pending |
