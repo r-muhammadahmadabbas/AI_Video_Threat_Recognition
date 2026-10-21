@@ -132,6 +132,9 @@ class PersonDownConfig(BaseModel):
         cooldown_seconds: minimum gap between two incidents for the same track.
         min_frames_down: consecutive frames the ratio must exceed the threshold
             before triggering. Filters single-frame pose jitter.
+        min_fall_confidence: minimum fall-model confidence that counts as
+            evidence. The model runs at a lower threshold so weak hits can
+            still veto fight alerts; only confident hits raise an incident.
         point: which point of the bbox to use for zone containment (if zone-bound).
         entry_margin/exit_margin: hysteresis multipliers used to derive this
             rule's containment rings, as for every zone-bound rule.
@@ -143,6 +146,7 @@ class PersonDownConfig(BaseModel):
     min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
     cooldown_seconds: float = Field(default=60.0, ge=0.0)
     min_frames_down: int = Field(default=3, ge=1)
+    min_fall_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
     entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
     exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
@@ -251,6 +255,14 @@ class FightConfig(BaseModel):
         point: which point of the bbox to use for zone containment.
         entry_margin/exit_margin: hysteresis multipliers used to derive this
             rule's containment rings, as for every zone-bound rule.
+        fall_suppression_seconds: a fall trips the violence classifier too, so
+            fight triggers are vetoed this long after a confident fall-model
+            hit. Weak fall hits use ``weak_fall_suppression_seconds`` instead
+            (a short veto for a single doubtful frame).
+        weak_fall_suppression_seconds: veto window for low-confidence fall
+            evidence, kept short so a bad fall frame cannot hide a fight.
+        strong_fall_confidence: fall-model confidence from which the long veto
+            applies.
         cooldown_seconds: minimum gap between two triggers.
     """
 
@@ -261,6 +273,9 @@ class FightConfig(BaseModel):
     point: Literal["bottom_center", "center"] = "bottom_center"
     entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
     exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
+    fall_suppression_seconds: float = Field(default=3.0, ge=0.0)
+    weak_fall_suppression_seconds: float = Field(default=1.0, ge=0.0)
+    strong_fall_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
     cooldown_seconds: float = Field(default=60.0, ge=0.0)
 
     @model_validator(mode="after")

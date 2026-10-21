@@ -56,6 +56,15 @@ FALL_CONFIDENCE = 0.40
 #: fight only once.
 VIOLENCE_PERSISTENCE = 2
 
+#: A fall (or even a false fall-model hit on stumbling motion) makes the
+#: violence classifier see "fight". Suppress violence events while fall-model
+#: evidence is fresh so one physical event produces one alert, not both.
+#: Weak hits only buy a short veto so a single bad fall frame cannot silence
+#: a real fight a few seconds later.
+FALL_FIGHT_SUPPRESSION_SECONDS = 3.0
+WEAK_FALL_FIGHT_SUPPRESSION_SECONDS = 1.0
+STRONG_FALL_CONFIDENCE = 0.60
+
 
 @dataclass
 class RuleEvent:
@@ -161,6 +170,8 @@ class DetectionPipeline:
         self._last_timestamp: float | None = None
         self._violence_streak = 0
         self._violence_active = False
+        self._last_fall_evidence_at: float | None = None
+        self._last_strong_fall_at: float | None = None
         self.events: list[RuleEvent] = []
 
     def reset_session(self) -> None:
@@ -173,6 +184,8 @@ class DetectionPipeline:
         self._last_timestamp = None
         self._violence_streak = 0
         self._violence_active = False
+        self._last_fall_evidence_at = None
+        self._last_strong_fall_at = None
         self.events.clear()
 
     def process_frame(
@@ -196,10 +209,33 @@ class DetectionPipeline:
         # persistence across model evaluations, then emit on the rising edge
         # only; otherwise every processed frame in a fight becomes a new
         # incident. Frames where the model did not run leave the streak alone.
+        # Fall evidence vetoes violence: a slip trips the fight classifier too,
+        # and users should receive one alert for one event.
+        if analysis.falls:
+            self._last_fall_evidence_at = timestamp
+            if any(
+                fall.confidence >= STRONG_FALL_CONFIDENCE
+                for fall in analysis.falls
+            ):
+                self._last_strong_fall_at = timestamp
+        weak_fall_recent = (
+            self._last_fall_evidence_at is not None
+            and timestamp - self._last_fall_evidence_at
+            <= WEAK_FALL_FIGHT_SUPPRESSION_SECONDS
+        )
+        strong_fall_recent = (
+            self._last_strong_fall_at is not None
+            and timestamp - self._last_strong_fall_at
+            <= FALL_FIGHT_SUPPRESSION_SECONDS
+        )
+        fall_recent = weak_fall_recent or strong_fall_recent
         if analysis.violence_checked:
-            self._violence_streak = (
-                self._violence_streak + 1 if analysis.violence else 0
-            )
+            if fall_recent:
+                self._violence_streak = 0
+            else:
+                self._violence_streak = (
+                    self._violence_streak + 1 if analysis.violence else 0
+                )
             if (
                 self._violence_streak >= VIOLENCE_PERSISTENCE
                 and not self._violence_active

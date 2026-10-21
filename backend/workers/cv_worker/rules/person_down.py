@@ -73,7 +73,11 @@ class PersonDownRule(BehaviorRule):
             height = max(1.0, y2 - y1)
             aspect_ratio = width / height
 
-            model_evidence = observation.track.fall_detected
+            model_evidence = observation.track.fall_detected and (
+                observation.track.fall_confidence == 0.0
+                or observation.track.fall_confidence
+                >= self.config.min_fall_confidence
+            )
             is_down = model_evidence or (
                 aspect_ratio >= self.config.aspect_ratio_threshold
             )

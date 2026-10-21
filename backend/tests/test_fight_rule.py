@@ -17,6 +17,8 @@ def observation(
     *,
     violence: bool = True,
     checked: bool = True,
+    fallen: bool = False,
+    fall_confidence: float = 0.0,
     confidence: float = 0.9,
     inside: bool = True,
 ) -> TrackObservation:
@@ -28,6 +30,8 @@ def observation(
     track.bottom_center = (130.0, 220.0)
     track.violence_detected = violence
     track.violence_checked = checked
+    track.fall_detected = fallen
+    track.fall_confidence = fall_confidence
     return TrackObservation(
         track=track,
         inside_expanded=inside,
@@ -58,6 +62,9 @@ class TestFightConfig:
         assert config.point == "bottom_center"
         assert config.entry_margin == 1.02
         assert config.exit_margin == 0.98
+        assert config.fall_suppression_seconds == 3.0
+        assert config.weak_fall_suppression_seconds == 1.0
+        assert config.strong_fall_confidence == 0.60
 
     def test_rejects_zero_consecutive(self):
         with pytest.raises(ValueError, match="min_consecutive_frames"):
@@ -93,6 +100,33 @@ class TestFightRule:
         rule.update([observation()], 0.0)
         rule.update([observation(violence=False)], 0.2)
         assert rule.update([observation()], 0.4) == []
+
+    def test_fall_evidence_suppresses_fight(self):
+        rule = make_rule()
+        rule.update([observation()], 0.0)
+        assert rule.update([observation(fallen=True)], 0.2) == []
+        assert rule.update([observation()], 1.0) == []
+        assert rule.update([observation()], 1.2) == []
+
+    def test_weak_fall_hit_only_buys_a_short_veto(self):
+        rule = make_rule()
+        rule.update([observation(fallen=True, fall_confidence=0.5)], 0.0)
+        rule.update([observation()], 1.2)
+        triggers = rule.update([observation()], 1.4)
+        assert len(triggers) == 1
+
+    def test_strong_fall_hit_vetoes_longer(self):
+        rule = make_rule()
+        rule.update([observation(fallen=True, fall_confidence=0.9)], 0.0)
+        rule.update([observation()], 1.2)
+        assert rule.update([observation()], 1.4) == []
+
+    def test_fight_fires_after_fall_window(self):
+        rule = make_rule()
+        rule.update([observation(fallen=True)], 0.0)
+        rule.update([observation()], 4.0)
+        triggers = rule.update([observation()], 4.2)
+        assert len(triggers) == 1
 
     def test_two_consecutive_hits_trigger(self):
         rule = make_rule()

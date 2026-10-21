@@ -30,6 +30,7 @@ def apply_enrichment(snapshot: TrackSnapshot, analysis: FrameAnalysis) -> None:
         track.weapon_detected = False
         track.weapon_confidence = 0.0
         track.fall_detected = False
+        track.fall_confidence = 0.0
         track.violence_detected = False
         track.violence_checked = analysis.violence_checked
 
@@ -73,6 +74,7 @@ def _attach_falls(track: TrackedObject, analysis: FrameAnalysis) -> None:
         x1, y1, x2, y2 = track.bbox
         if x1 <= fx <= x2 and y1 <= fy <= y2:
             track.fall_detected = True
+            track.fall_confidence = max(track.fall_confidence, fall.confidence)
             return
 
 

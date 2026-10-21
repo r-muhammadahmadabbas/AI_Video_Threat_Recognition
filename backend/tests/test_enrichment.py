@@ -143,6 +143,7 @@ class TestFallAssociation:
         apply_enrichment(snapshot(track), analysis)
 
         assert track.fall_detected is True
+        assert track.fall_confidence == 0.8
 
     def test_fall_center_outside_the_person_is_not_attached(self):
         track = make_track(bbox=(100.0, 100.0, 200.0, 300.0))
@@ -160,3 +161,4 @@ class TestFallAssociation:
         apply_enrichment(snapshot(track), FrameAnalysis())
 
         assert track.fall_detected is False
+        assert track.fall_confidence == 0.0

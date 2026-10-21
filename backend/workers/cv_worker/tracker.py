@@ -34,6 +34,7 @@ class TrackedObject:
     weapon_detected: bool = False
     weapon_confidence: float = 0.0
     fall_detected: bool = False
+    fall_confidence: float = 0.0
     violence_detected: bool = False
     #: True when the violence model ran on this frame. Frames between model
     #: runs carry ``violence_detected=False`` only because nothing was checked;

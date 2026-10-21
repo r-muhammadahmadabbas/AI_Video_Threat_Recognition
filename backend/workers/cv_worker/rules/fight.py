@@ -33,6 +33,8 @@ class FightRule(BehaviorRule):
         self._streak = 0
         self._active = False
         self._last_triggered_at: float | None = None
+        self._last_fall_at: float | None = None
+        self._last_strong_fall_at: float | None = None
 
     def update(
         self,
@@ -40,6 +42,36 @@ class FightRule(BehaviorRule):
         timestamp: float,
         dt: float = 0.0,  # noqa: ARG002 - part of the BehaviorRule interface
     ) -> list[RuleTrigger]:
+        fall_confidences = [
+            observation.track.fall_confidence
+            for observation in observations
+            if observation.track.fall_detected
+        ]
+        if fall_confidences:
+            self._last_fall_at = timestamp
+            if any(
+                confidence == 0.0
+                or confidence >= self.config.strong_fall_confidence
+                for confidence in fall_confidences
+            ):
+                self._last_strong_fall_at = timestamp
+        weak_fall_recent = (
+            self._last_fall_at is not None
+            and timestamp - self._last_fall_at
+            <= self.config.weak_fall_suppression_seconds
+        )
+        strong_fall_recent = (
+            self._last_strong_fall_at is not None
+            and timestamp - self._last_strong_fall_at
+            <= self.config.fall_suppression_seconds
+        )
+        if weak_fall_recent or strong_fall_recent:
+            # A fall also looks violent to the classifier; keep the single
+            # person-down alert instead of adding a fight alert.
+            self._streak = 0
+            self._active = False
+            return []
+
         checked = [
             observation
             for observation in observations
@@ -99,3 +131,5 @@ class FightRule(BehaviorRule):
         self._streak = 0
         self._active = False
         self._last_triggered_at = None
+        self._last_fall_at = None
+        self._last_strong_fall_at = None

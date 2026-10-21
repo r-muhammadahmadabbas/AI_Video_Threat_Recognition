@@ -21,6 +21,7 @@ class FakeAnalyzer:
     def __init__(self) -> None:
         self.persons: list[Detection] = []
         self.weapons: list[WeaponDetection] = []
+        self.falls: list[Detection] = []
         self.violence = False
         self.pose = None
         self.resets = 0
@@ -34,6 +35,7 @@ class FakeAnalyzer:
         return FrameAnalysis(
             persons=list(self.persons),
             weapons=list(self.weapons),
+            falls=list(self.falls),
             violence=self.violence,
             violence_checked=True,
             pose_keypoints=self.pose,
@@ -148,6 +150,23 @@ class TestRuleEvents:
         pipeline.process_frame(FRAME, 1.0)
 
         assert not [e for e in pipeline.events if e.rule == "violence_detected"]
+
+    def test_fall_evidence_suppresses_violence(self, pipeline, analyzer):
+        analyzer.persons = [person()]
+        analyzer.falls = [person()]
+        analyzer.violence = True
+        pipeline.process_frame(FRAME, 0.0)
+        pipeline.process_frame(FRAME, 1.0)
+
+        assert not [e for e in pipeline.events if e.rule == "violence_detected"]
+
+        analyzer.falls = []
+        pipeline.process_frame(FRAME, 5.0)
+        pipeline.process_frame(FRAME, 6.0)
+        violence_events = [
+            e for e in pipeline.events if e.rule == "violence_detected"
+        ]
+        assert len(violence_events) == 1
 
 
 class TestSessionReset:

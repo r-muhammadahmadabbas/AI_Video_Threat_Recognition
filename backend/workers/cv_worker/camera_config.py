@@ -200,7 +200,7 @@ def build_runtime(camera: Any, zone_rows: list[Any], rule_rows: list[Any]) -> Ca
         rules=rules,
         fight_enabled="fight" in enabled,
         weapon_enabled="weapon" in enabled,
-        fall_enabled="person_down" in enabled,
+        fall_enabled="person_down" in enabled or "fight" in enabled,
     )
 
 

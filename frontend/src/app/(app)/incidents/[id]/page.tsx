@@ -370,7 +370,7 @@ export default function IncidentDetailPage() {
                     <p className="text-[11px] uppercase tracking-wider text-muted-foreground">
                       {detail.label}
                     </p>
-                    <p className="mt-1 text-sm">{detail.value}</p>
+                    <div className="mt-1 text-sm">{detail.value}</div>
                   </div>
                 ))}
               </div>
