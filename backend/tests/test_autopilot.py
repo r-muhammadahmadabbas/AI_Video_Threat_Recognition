@@ -18,7 +18,8 @@ from scripts.autopilot.orchestrator import (
 
 
 def test_workflow_packages_hidden_autopilot_artifact() -> None:
-    workflow = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "autopilot.yml"
+    root = Path(__file__).resolve().parents[2]
+    workflow = root / ".github" / "workflows" / "autopilot.yml"
     text = workflow.read_text(encoding="utf-8")
     assert text.count("name: autopilot-${{ github.run_id }}") == 2
     assert "path: .autopilot/" in text
@@ -26,6 +27,17 @@ def test_workflow_packages_hidden_autopilot_artifact() -> None:
     assert "if-no-files-found: error" in text
     assert ".autopilot/state.json" in text
     assert ".autopilot/outcome.json" in text
+
+
+def test_workflow_fails_fast_on_clean_environment() -> None:
+    root = Path(__file__).resolve().parents[2]
+    workflow = root / ".github" / "workflows" / "autopilot.yml"
+    text = workflow.read_text(encoding="utf-8")
+    assert "Validate repository prerequisites" in text
+    assert "python -m pip check" in text
+    assert "python -m pytest --collect-only -q" in text
+    pyproject = (root / "backend" / "pyproject.toml").read_text(encoding="utf-8")
+    assert "email-validator>=2.0.0" in pyproject
 
 
 def test_model_chains_cover_four_roles_with_fallbacks() -> None:

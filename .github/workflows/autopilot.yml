@@ -32,6 +32,21 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
+      - name: Validate repository prerequisites
+        run: |
+          set -euo pipefail
+          test -f AUTOPILOT.md
+          test -f opencode.json
+          test -f backend/pyproject.toml
+          test -f backend/scripts/autopilot/orchestrator.py
+          test -f backend/scripts/autopilot/status.py
+          test -f .opencode/agents/autopilot-implementer.md
+          test -f .opencode/agents/autopilot-evaluator.md
+          test -f .opencode/agents/autopilot-guardian.md
+          test -f .opencode/agents/autopilot-supervisor.md
+          test -f .opencode/commands/autopilot-status.md
+          echo "Repository prerequisites OK"
+
       - name: Decide whether to run
         id: gate
         env:
@@ -93,7 +108,10 @@ jobs:
 
       - name: Verify backend
         working-directory: backend
-        run: python -m pytest tests/test_person_down.py tests/test_enrichment.py tests/test_autopilot.py -q
+        run: |
+          python -m pip check
+          python -m pytest --collect-only -q
+          python -m pytest tests/test_person_down.py tests/test_enrichment.py tests/test_autopilot.py -q
 
       - name: Install OpenCode
         run: |
@@ -183,6 +201,12 @@ jobs:
           python -m pip install --index-url https://download.pytorch.org/whl/cpu torch torchvision
           python -c "import tomllib, pathlib; d=tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['dependencies']; pathlib.Path('/tmp/requirements.txt').write_text('\n'.join(d))"
           python -m pip install -r /tmp/requirements.txt pytest pytest-asyncio ruff
+
+      - name: Verify backend
+        working-directory: backend
+        run: |
+          python -m pip check
+          python -m pytest --collect-only -q
 
       - name: Download Autopilot artifact
         continue-on-error: true
