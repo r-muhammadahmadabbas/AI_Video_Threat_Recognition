@@ -2,10 +2,10 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T02:11:15+00:00",
+  "updated_at": "2026-10-22T02:24:48+00:00",
   "sprint_index": 7,
   "task_index": 0,
-  "attempts": 0,
+  "attempts": 1,
   "completed": [
     "sprint-1.1",
     "sprint-1.2",
@@ -25,15 +25,17 @@
   ],
   "blocked": [],
   "last_result": {
-    "status": "approved",
-    "task": "sprint-7.2",
-    "reason": "Adds a dropout_grace_seconds window (default 1.0) to ZoneEntryConfig and ages instead of immediately deleting ZoneEntryRule presence state, so a 1-2 frame tracker dropout no longer duplicates a zone-entry incident; small, in-scope, test-backed, and regression-free, with accuracy explicitly not measured because model weights and labelled clips are missing."
+    "status": "blocked",
+    "task": "sprint-8.1",
+    "reason": "deterministic gates failed"
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
-    "policy_errors": [],
-    "diff_lines": 114
+    "policy_errors": [
+      "diff too large: 432 > 400 lines"
+    ],
+    "diff_lines": 432
   },
   "metrics": {},
   "runs": 0,
