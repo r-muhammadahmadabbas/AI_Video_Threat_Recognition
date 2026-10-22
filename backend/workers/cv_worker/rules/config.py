@@ -145,6 +145,17 @@ class PersonDownConfig(BaseModel):
         min_fall_confidence: minimum fall-model confidence that counts as
             evidence. The model runs at a lower threshold so weak hits can
             still veto fight alerts; only confident hits raise an incident.
+        weak_fall_confidence: lower edge of the weak fall-model band. A single
+            hit in this band is not an incident, but repeated hits can build
+            smoothed evidence and recover falls whose best frame is below
+            ``min_fall_confidence``. Must not exceed ``min_fall_confidence``.
+        fall_smoothing_decay: weight kept on the previous weak-fall score. The
+            score rises on a weak hit and decays otherwise, so an isolated
+            crouch/sitting false hit cannot raise an incident.
+        min_smoothed_fall_score: normalized weak-fall evidence required to
+            trigger. Scores are normalized against ``min_fall_confidence``, so
+            one incident-threshold hit would score 1.0; the default therefore
+            needs at least two moderately weak hits to accumulate.
         point: which point of the bbox to use for zone containment (if zone-bound).
         entry_margin/exit_margin: hysteresis multipliers used to derive this
             rule's containment rings, as for every zone-bound rule.
@@ -159,6 +170,9 @@ class PersonDownConfig(BaseModel):
     min_track_frames: int = Field(default=3, ge=1)
     upright_pose_veto_seconds: float = Field(default=2.0, ge=0.0)
     min_fall_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
+    weak_fall_confidence: float = Field(default=0.40, ge=0.0, le=1.0)
+    fall_smoothing_decay: float = Field(default=0.5, ge=0.0, lt=1.0)
+    min_smoothed_fall_score: float = Field(default=0.60, gt=0.0, le=1.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
     entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
     exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
@@ -166,6 +180,15 @@ class PersonDownConfig(BaseModel):
     @model_validator(mode="after")
     def _exit_must_be_tighter_than_entry(self) -> PersonDownConfig:
         _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
+
+    @model_validator(mode="after")
+    def _weak_fall_edge_below_incident_edge(self) -> PersonDownConfig:
+        if self.weak_fall_confidence > self.min_fall_confidence:
+            raise ValueError(
+                "weak_fall_confidence must not exceed min_fall_confidence, "
+                "otherwise the weak-fall band is empty"
+            )
         return self
 
 

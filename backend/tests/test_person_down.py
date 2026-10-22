@@ -23,10 +23,20 @@ class TestPersonDownConfig:
         assert cfg.min_frames_down == 3
         assert cfg.min_track_frames == 3
         assert cfg.upright_pose_veto_seconds == 2.0
+        assert cfg.min_fall_confidence == 0.60
+        assert cfg.weak_fall_confidence == 0.40
+        assert cfg.fall_smoothing_decay == 0.5
+        assert cfg.min_smoothed_fall_score == 0.60
 
     def test_rejects_negative_upright_pose_veto(self):
         with pytest.raises(ValueError, match="upright_pose_veto_seconds"):
             PersonDownConfig(upright_pose_veto_seconds=-0.1)
+
+    def test_rejects_weak_fall_edge_above_incident_edge(self):
+        with pytest.raises(ValueError, match="weak_fall_confidence"):
+            PersonDownConfig(
+                min_fall_confidence=0.5, weak_fall_confidence=0.6
+            )
 
     def test_rejects_aspect_ratio_at_or_below_one(self):
         with pytest.raises(ValueError, match="aspect_ratio_threshold"):
@@ -165,6 +175,89 @@ class TestPersonDownRule:
         )
 
         assert triggers == []
+
+    def test_repeated_weak_fall_hits_accumulate_into_an_incident(self):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(
+                aspect_ratio_threshold=1.2,
+                min_fall_confidence=0.60,
+                weak_fall_confidence=0.40,
+                fall_smoothing_decay=0.5,
+                min_smoothed_fall_score=0.60,
+                cooldown_seconds=10.0,
+            ),
+        )
+        # Upright box: only the fall model can supply evidence.
+        bbox = (100.0, 100.0, 200.0, 300.0)
+
+        assert (
+            rule.update(
+                [self._obs(1, bbox, fall_detected=True, fall_confidence=0.55)],
+                timestamp=1.0,
+            )
+            == []
+        )
+        triggers = rule.update(
+            [self._obs(1, bbox, fall_detected=True, fall_confidence=0.55)],
+            timestamp=2.0,
+        )
+
+        assert len(triggers) == 1
+        details = triggers[0].details
+        assert details["evidence"] == "fall_model_smoothed"
+        assert details["min_frames_required"] == 1
+        assert details["fall_confidence"] == 0.55
+        assert details["smoothed_fall_score"] == pytest.approx(0.688, abs=0.001)
+        assert details["weak_fall_hits"] == 2
+        assert details["min_smoothed_fall_score"] == 0.60
+
+    @pytest.mark.parametrize(
+        "hard_negative",
+        ["crouching", "sitting", "kneeling"],
+    )
+    def test_upright_pose_rejects_repeated_weak_fall_hits(
+        self, hard_negative
+    ):
+        rule = PersonDownRule(
+            rule_id="pd_1",
+            rule_name="Person Down",
+            zone_id="zone_1",
+            zone_name="Test Zone",
+            severity="high",
+            config=PersonDownConfig(
+                aspect_ratio_threshold=1.2,
+                min_frames_down=1,
+                min_track_frames=1,
+                weak_fall_confidence=0.40,
+                min_fall_confidence=0.60,
+                min_smoothed_fall_score=0.60,
+                upright_pose_veto_seconds=5.0,
+            ),
+        )
+        # Wide box plus a stream of weak fall hits would otherwise reach the
+        # smoothed threshold; the upright skeleton keeps it a negative.
+        bbox = (100.0, 100.0, 300.0, 200.0)
+
+        for second in range(5):
+            triggers = rule.update(
+                [
+                    self._obs(
+                        1,
+                        bbox,
+                        fall_detected=True,
+                        fall_confidence=0.55,
+                        pose_checked=True,
+                        pose_fall_detected=False,
+                    )
+                ],
+                timestamp=float(second),
+            )
+            assert triggers == [], hard_negative
 
     def test_pose_evidence_is_reported_as_pose_not_fall_model(self):
         rule = PersonDownRule(

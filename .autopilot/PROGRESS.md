@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-21T23:59:56+00:00
+- Updated: 2026-10-22T00:19:08+00:00
 - Status: running
-- Progress: 7/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 4/8 (Fall accuracy) / Task 1 (Improve fall recall without adding false alarms)
-- Last result: approved: Fight rule and pipeline violence path now fuse classifier verdicts with a configurable EMA smoother plus hysteresis (entry on positive_hits and smoothed score, exit on decay), test-backed and reversible, but accuracy was NOT measured because backend/models/ is missing so no baseline was updated.
+- Progress: 8/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 4/8 (Fall accuracy) / Task 2 (Calibrate fall confidence)
+- Last result: approved: Approve sprint-4.1 as correctness/test work: person_down gains a weak-band fall-score EMA with upright-pose reset for sitting/kneeling/crouching rejection; all deterministic gates pass, but accuracy was NOT measured because backend/models is missing, so no recall or precision claim is made.
 
 ## Sprint board
 
@@ -17,8 +17,8 @@
 | Person-down accuracy | Calibrate person-down thresholds | done |
 | Fight false-alarm reduction | Reduce fight false alarms on normal motion | done |
 | Fight false-alarm reduction | Improve fight temporal fusion | done |
-| Fall accuracy | Improve fall recall without adding false alarms | current |
-| Fall accuracy | Calibrate fall confidence | pending |
+| Fall accuracy | Improve fall recall without adding false alarms | done |
+| Fall accuracy | Calibrate fall confidence | current |
 | Loitering and crowd accuracy | Improve loitering trajectory evidence | pending |
 | Loitering and crowd accuracy | Improve crowd anomaly baseline | pending |
 | Weapon accuracy | Improve weapon temporal evidence | pending |
