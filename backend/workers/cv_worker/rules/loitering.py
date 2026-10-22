@@ -15,10 +15,23 @@ never accrues dwell time at all.
 
 Residency is accumulated from the frame cadence (``dt``) rather than wall clock
 so that offline replay of a clip produces identical dwell on every run.
+
+**Trajectory evidence.** A long-lived detection with an almost perfectly
+stationary center is more likely a misdetected object than a person. The rule
+tracks the cumulative center path for each candidate and suppresses triggers
+from tracks that have shown enough continuity to be judged but have not moved
+at all. A real loiterer usually walked to the spot, and even a subject standing
+still produces some box jitter, so ordinary loitering is unaffected.
+
+**Brief tracker dropouts.** The same ``grace_seconds`` window keeps an episode
+alive when the tracker temporarily stops reporting a track, not only when the
+track is observed just outside the zone. A short detection gap therefore
+pauses the clock instead of forcing the dwell to restart.
 """
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 
 from workers.cv_worker.rules.base import (
@@ -39,6 +52,8 @@ class _Episode:
     clock_started: bool = False
     triggered: bool = False
     last_triggered_at: float | None = None
+    path_length_px: float = 0.0
+    last_center: tuple[float, float] | None = None
 
 
 @dataclass
@@ -80,6 +95,7 @@ class LoiterRule(BehaviorRule):
                 continue
 
             episode = self._episodes.setdefault(tracker_id, _Episode())
+            self._record_trajectory(episode, observation.track.center)
 
             if observation.inside_expanded:
                 self._advance_inside(episode, dt)
@@ -90,6 +106,8 @@ class LoiterRule(BehaviorRule):
                 continue
             if episode.dwell_seconds < self.config.dwell_seconds:
                 continue
+            if self._is_stationary_object(observation, episode):
+                continue
             if not self._cooldown_elapsed(episode, timestamp):
                 continue
 
@@ -97,8 +115,33 @@ class LoiterRule(BehaviorRule):
             episode.last_triggered_at = timestamp
             triggers.append(self._make_trigger(observation, timestamp))
 
-        self._forget_absent(seen)
+        self._forget_absent(seen, dt)
         return triggers
+
+    @staticmethod
+    def _record_trajectory(
+        episode: _Episode, center: tuple[float, float]
+    ) -> None:
+        """Accumulate the center path so static objects can be recognised."""
+        if episode.last_center is not None:
+            episode.path_length_px += math.dist(episode.last_center, center)
+        episode.last_center = center
+
+    def _is_stationary_object(
+        self, observation: TrackObservation, episode: _Episode
+    ) -> bool:
+        """Reject a track that has persisted without moving.
+
+        The track must first have enough observations for the decision to be
+        meaningful; until then its dwell is judged normally. Zero disables the
+        guard so an administrator can turn it off per camera.
+        """
+        if self.config.stationary_max_path_px <= 0.0:
+            return False
+        return (
+            observation.track.frames_seen >= self.config.stationary_min_frames
+            and episode.path_length_px < self.config.stationary_max_path_px
+        )
 
     def _advance_inside(self, episode: _Episode, dt: float) -> None:
         episode.exit_seconds = 0.0
@@ -163,19 +206,31 @@ class LoiterRule(BehaviorRule):
                 "residence_seconds": round(episode.dwell_seconds, 3),
                 "dwell_threshold_seconds": self.config.dwell_seconds,
                 "grace_seconds": self.config.grace_seconds,
+                "path_length_px": round(episode.path_length_px, 3),
+                "frames_seen": track.frames_seen,
+                "stationary_max_path_px": self.config.stationary_max_path_px,
                 "bbox": list(track.bbox),
             },
         )
 
-    def _forget_absent(self, seen: set[int]) -> None:
-        """Drop episodes for tracks the tracker no longer reports.
+    def _forget_absent(self, seen: set[int], dt: float) -> None:
+        """Age episodes for tracks the tracker no longer reports.
 
-        Without this ``self._episodes`` would grow without bound on a long
-        running camera, and a stale ``triggered`` flag would suppress a later
-        track that happened to reuse the same id.
+        A brief dropout is treated like a brief exit: it pauses the residency
+        clock for up to ``grace_seconds`` and then ends the episode. With no
+        elapsed time to apply, the episode is dropped immediately so a long
+        running camera cannot leak state. Episodes that end are deleted, which
+        also clears a stale ``triggered`` flag when a later track reuses an id.
         """
         for tracker_id in [tid for tid in self._episodes if tid not in seen]:
-            del self._episodes[tracker_id]
+            episode = self._episodes[tracker_id]
+            if dt <= 0.0:
+                del self._episodes[tracker_id]
+                continue
+
+            self._advance_outside(episode, dt)
+            if not episode.clock_started:
+                del self._episodes[tracker_id]
 
     def reset(self) -> None:
         self._episodes.clear()

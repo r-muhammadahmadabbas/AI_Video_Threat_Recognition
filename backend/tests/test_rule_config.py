@@ -59,6 +59,8 @@ class TestLoiterConfig:
         assert cfg.dwell_seconds == 30.0
         assert cfg.grace_seconds == 5.0
         assert cfg.require_min_frames == 2
+        assert cfg.stationary_min_frames == 15
+        assert cfg.stationary_max_path_px == 4.0
 
     def test_rejects_zero_dwell(self):
         with pytest.raises(ValidationError):
@@ -67,6 +69,12 @@ class TestLoiterConfig:
     def test_rejects_negative_grace(self):
         with pytest.raises(ValidationError):
             LoiterConfig(grace_seconds=-1)
+
+    def test_rejects_invalid_stationary_guard(self):
+        with pytest.raises(ValidationError, match="stationary_min_frames"):
+            LoiterConfig(stationary_min_frames=0)
+        with pytest.raises(ValidationError, match="stationary_max_path_px"):
+            LoiterConfig(stationary_max_path_px=-1.0)
 
     def test_exit_at_grace_boundary_is_tolerated(self):
         cfg = LoiterConfig(grace_seconds=5.0)

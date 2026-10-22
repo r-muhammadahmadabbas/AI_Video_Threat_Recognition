@@ -89,6 +89,17 @@ class LoiterConfig(BaseModel):
         point: which point of the bounding box to test against the polygon.
         require_min_frames: consecutive frames inside before dwell time counts.
             Stops a single noisy frame from starting a residency clock.
+        stationary_min_frames: minimum ``track.frames_seen`` before the
+            stationary-object guard applies. A newly created track has not
+            shown enough continuity to distinguish a person from a static
+            false positive, so its dwell is judged normally until this many
+            observations have accumulated.
+        stationary_max_path_px: cumulative center-path length below which a
+            sufficiently persistent track is treated as a stationary object
+            rather than a person. Real people move (even if only slightly) and
+            a person who loiters has usually walked to the spot, while a
+            tripod, poster or other static false positive keeps a near-zero
+            path. Set to zero to disable the guard.
     """
 
     model_config = ConfigDict(extra="forbid")
@@ -99,6 +110,8 @@ class LoiterConfig(BaseModel):
     cooldown_seconds: float = Field(default=300.0, ge=0.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
     require_min_frames: int = Field(default=2, ge=1)
+    stationary_min_frames: int = Field(default=15, ge=1)
+    stationary_max_path_px: float = Field(default=4.0, ge=0.0)
     entry_margin: float = Field(default=1.02, gt=0.0, le=2.0)
     exit_margin: float = Field(default=0.98, gt=0.0, le=2.0)
 

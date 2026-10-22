@@ -1,4 +1,5 @@
 import pytest
+from pydantic import ValidationError
 
 from tests.zone_fixtures import (
     make_observation,
@@ -36,7 +37,7 @@ def outside_track(tid=1):
     return make_track(tid, bbox=(500.0, 100.0, 600.0, 250.0))
 
 
-def run(rule, track, runtime, frames, dt=1.0, t0=0.0):
+def run(rule, track, runtime, frames, *, dt=1.0, t0=0.0):
     """Feed `frames` observations and return every trigger produced."""
     triggers = []
     for i in range(frames):
@@ -63,7 +64,7 @@ class TestDwellThreshold:
         assert len(run(rule, inside_track(), runtime, frames=100)) == 1
 
     def test_zero_dwell_rejected_by_config(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError, match="dwell_seconds"):
             LoiterConfig(dwell_seconds=0)
 
     def test_outside_never_accumulates(self, runtime):
@@ -242,6 +243,146 @@ class TestCooldownAndDedup:
         assert {t.tracker_id for t in triggers} == {1, 2}
 
 
+class TestStationaryObjectRejection:
+    def test_persistent_static_track_never_triggers(self, runtime):
+        """A long-lived detection whose box never moves is an object, not a person."""
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=5.0,
+                require_min_frames=1,
+                stationary_min_frames=10,
+                stationary_max_path_px=4.0,
+            )
+        )
+        track = inside_track()
+        track.frames_seen = 20
+
+        assert run(rule, track, runtime, frames=12) == []
+        assert rule._episodes[1].path_length_px == 0.0
+
+    def test_guard_waits_for_enough_track_continuity(self, runtime):
+        """Before the frame floor, dwell is judged normally."""
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=5.0,
+                require_min_frames=1,
+                stationary_min_frames=10,
+                stationary_max_path_px=4.0,
+            )
+        )
+        track = inside_track()
+        track.frames_seen = 5
+
+        assert len(run(rule, track, runtime, frames=5)) == 1
+
+    def test_approaching_person_still_triggers(self, runtime):
+        """Walking to the spot builds path evidence even after the subject stops."""
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=5.0,
+                require_min_frames=1,
+                stationary_min_frames=10,
+                stationary_max_path_px=4.0,
+            )
+        )
+        track = inside_track()
+        track.frames_seen = 20
+        triggers = []
+
+        for i in range(10):
+            track.bbox = (150.0 + i * 2.0, 100.0, 250.0 + i * 2.0, 250.0)
+            triggers += rule.update(
+                [make_observation(track, runtime)], float(i), 1.0
+            )
+
+        assert len(triggers) == 1
+        assert triggers[0].details["path_length_px"] >= 4.0
+
+    def test_jitter_below_threshold_is_still_stationary(self, runtime):
+        """Tiny detector noise must not turn a static object into a person."""
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=5.0,
+                require_min_frames=1,
+                stationary_min_frames=10,
+                stationary_max_path_px=4.0,
+            )
+        )
+        track = inside_track()
+        track.frames_seen = 20
+        triggers = []
+
+        for i in range(12):
+            offset = 0.1 if i % 2 else 0.0
+            track.bbox = (150.0 + offset, 100.0, 250.0 + offset, 250.0)
+            triggers += rule.update(
+                [make_observation(track, runtime)], float(i), 1.0
+            )
+
+        assert triggers == []
+
+    def test_moving_after_a_static_episode_can_trigger(self, runtime):
+        """The guard suppresses evidence, not the track forever."""
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=5.0,
+                require_min_frames=1,
+                stationary_min_frames=10,
+                stationary_max_path_px=4.0,
+            )
+        )
+        track = inside_track()
+        track.frames_seen = 20
+
+        for i in range(8):
+            rule.update([make_observation(track, runtime)], float(i), 1.0)
+        assert rule.residence_seconds[1] == pytest.approx(8.0)
+
+        triggers = []
+        for i in range(8, 14):
+            track.bbox = (150.0 + (i - 7) * 5.0, 100.0, 250.0 + (i - 7) * 5.0, 250.0)
+            triggers += rule.update(
+                [make_observation(track, runtime)], float(i), 1.0
+            )
+
+        assert len(triggers) == 1
+        assert triggers[0].details["path_length_px"] > 4.0
+
+
+class TestTrackerDropoutContinuity:
+    def test_brief_dropout_pauses_residency_instead_of_resetting(self, runtime):
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=10.0, grace_seconds=5.0, require_min_frames=1
+            )
+        )
+        track = inside_track()
+
+        run(rule, track, runtime, frames=8)
+        assert residence(rule) == pytest.approx(8.0)
+
+        for i in range(8, 10):
+            rule.update([], float(i), 1.0)
+        assert residence(rule) == pytest.approx(8.0)
+
+        assert len(run(rule, track, runtime, frames=2, t0=10)) == 1
+        assert residence(rule) == pytest.approx(10.0)
+
+    def test_dropout_beyond_grace_ends_the_episode(self, runtime):
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=10.0, grace_seconds=5.0, require_min_frames=1
+            )
+        )
+        run(rule, inside_track(), runtime, frames=8)
+
+        for i in range(8, 15):
+            rule.update([], float(i), 1.0)
+
+        assert residence(rule) == 0.0
+        assert rule._episodes == {}
+
+
 class TestTriggerPayload:
     def test_payload_fields(self, runtime):
         rule = make_rule(config=LoiterConfig(dwell_seconds=3.0, require_min_frames=1))
@@ -271,15 +412,19 @@ class TestStateManagement:
         assert residence(rule) == 0.0
         assert len(rule._episodes) == 0
 
-    def test_absent_track_forgotten(self, runtime):
-        rule = make_rule(config=LoiterConfig(dwell_seconds=100.0, require_min_frames=1))
+    def test_absent_track_forgotten_when_grace_is_zero(self, runtime):
+        rule = make_rule(
+            config=LoiterConfig(
+                dwell_seconds=100.0, grace_seconds=0.0, require_min_frames=1
+            )
+        )
         run(rule, inside_track(), runtime, frames=3)
         assert len(rule._episodes) == 1
 
         rule.update([], 10.0, 1.0)
         assert len(rule._episodes) == 0
 
-    def test_unknown_track_reports_zero(self, runtime):
+    def test_unknown_track_reports_zero(self):
         rule = make_rule()
         assert residence(rule, tid=999) == 0.0
 

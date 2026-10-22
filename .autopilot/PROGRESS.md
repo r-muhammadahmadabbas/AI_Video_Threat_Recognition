@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-22T00:32:04+00:00
+- Updated: 2026-10-22T00:49:37+00:00
 - Status: running
-- Progress: 9/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 5/8 (Loitering and crowd accuracy) / Task 1 (Improve loitering trajectory evidence)
-- Last result: approved: Sprint 4/8 task 2 is approved: the change adds a clearly labelled stored-benchmark fall precision/recall tradeoff table (c40/c60) and a regenerated, reproducible BASELINE_SCOREBOARD.md with regression tests, and it selects no threshold and makes no accuracy claim.
+- Progress: 10/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 5/8 (Loitering and crowd accuracy) / Task 2 (Improve crowd anomaly baseline)
+- Last result: approved: Approved: the loitering rule now records per-track center-path trajectory, rejects persistent stationary-object tracks, and preserves dwell across brief tracker dropouts, with 8 new regression tests; deterministic gates pass, guardian and evaluator both approve, and no accuracy claim is made because model weights and labelled loitering clips are missing.
 
 ## Sprint board
 
@@ -19,8 +19,8 @@
 | Fight false-alarm reduction | Improve fight temporal fusion | done |
 | Fall accuracy | Improve fall recall without adding false alarms | done |
 | Fall accuracy | Calibrate fall confidence | done |
-| Loitering and crowd accuracy | Improve loitering trajectory evidence | current |
-| Loitering and crowd accuracy | Improve crowd anomaly baseline | pending |
+| Loitering and crowd accuracy | Improve loitering trajectory evidence | done |
+| Loitering and crowd accuracy | Improve crowd anomaly baseline | current |
 | Weapon accuracy | Improve weapon temporal evidence | pending |
 | Weapon accuracy | Calibrate weapon threshold | pending |
 | Zone and live evaluation | Add live zone-entry evaluation | pending |
