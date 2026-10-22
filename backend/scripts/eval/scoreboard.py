@@ -220,8 +220,12 @@ def build_scoreboard(results_dir: Path) -> dict[str, Any]:
     rows = [_row_from_report(path, data) for path, data in load_reports(results_dir)]
     tradeoff = stored_fall_threshold_tradeoff(rows)
     notes = [
-        "metrics are transcribed from existing reports; the offline harness "
-        "was not rerun because model weights are missing",
+        "metrics are transcribed from existing reports; detection AP values "
+        "were not re-run because model weights and raw images/annotations are "
+        "missing",
+        "event and clip benchmarks were re-run from stored ground truth and "
+        "predictions with `python -m scripts.eval.regression`; see "
+        "`ACCURACY_REGRESSION.md` for the full result",
         "null means the metric was not available in the stored results; the "
         "reason is recorded in each row's missing map",
         "false alarms per 10 minutes are the stored per-minute rate scaled by 10",

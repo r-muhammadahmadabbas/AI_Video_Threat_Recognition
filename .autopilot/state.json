@@ -2,10 +2,10 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T02:24:48+00:00",
+  "updated_at": "2026-10-22T02:40:22+00:00",
   "sprint_index": 7,
-  "task_index": 0,
-  "attempts": 1,
+  "task_index": 1,
+  "attempts": 0,
   "completed": [
     "sprint-1.1",
     "sprint-1.2",
@@ -21,33 +21,32 @@
     "sprint-6.1",
     "sprint-6.2",
     "sprint-7.1",
-    "sprint-7.2"
+    "sprint-7.2",
+    "sprint-8.1"
   ],
   "blocked": [],
   "last_result": {
-    "status": "blocked",
+    "status": "approved",
     "task": "sprint-8.1",
-    "reason": "deterministic gates failed"
+    "reason": "Sprint 8.1 adds a reproducible offline regression runner that re-scores all 5 event/clip benchmarks from committed GT/predictions (5 reproduced, 0 mismatched), marks the 4 asset-blocked benchmarks not_run with named reasons, and updates the scoreboard \u2014 all gates, guardian, and evaluator checks pass."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
-    "policy_errors": [
-      "diff too large: 432 > 400 lines"
-    ],
-    "diff_lines": 432
+    "policy_errors": [],
+    "diff_lines": 397
   },
   "metrics": {},
   "runs": 0,
   "current": {
     "sprint_index": 7,
-    "task_index": 0,
+    "task_index": 1,
     "sprint_id": "sprint-8",
     "sprint_name": "Regression and final report",
     "rule": "all",
-    "task_id": "sprint-8.1",
-    "task_title": "Run the full accuracy regression",
-    "goal": "Run every available benchmark, fix regressions inside the allowed surface, and update the scoreboard with real numbers.",
-    "exit": "Full regression result with no unexplained regression."
+    "task_id": "sprint-8.2",
+    "task_title": "Write the final accuracy report and next backlog",
+    "goal": "Write a concise report covering what improved, what is still blocked, the exact evidence, and the next three experiments.",
+    "exit": "Report committed with a prioritized backlog."
   }
 }
