@@ -2,9 +2,9 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T01:35:14+00:00",
+  "updated_at": "2026-10-22T01:52:13+00:00",
   "sprint_index": 6,
-  "task_index": 0,
+  "task_index": 1,
   "attempts": 0,
   "completed": [
     "sprint-1.1",
@@ -19,31 +19,32 @@
     "sprint-5.1",
     "sprint-5.2",
     "sprint-6.1",
-    "sprint-6.2"
+    "sprint-6.2",
+    "sprint-7.1"
   ],
   "blocked": [],
   "last_result": {
     "status": "approved",
-    "task": "sprint-6.2",
-    "reason": "Sprint 6.2 delivers test-backed not-run weapon calibration evidence and a regenerated baseline with no threshold selected, satisfying the exit criteria under the missing-assets protocol."
+    "task": "sprint-7.1",
+    "reason": "Adds a model-free live-path zone-entry evaluator (backend/scripts/eval/live_zone_entry.py) that replays recorded tracks through the same RuleEngine + ZoneEntryRule path used by CVWorker, plus 6 regression tests covering concave polygon geometry, entry direction, re-entry, event matching/schema round-trip, and the worker incident path."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 162
+    "diff_lines": 379
   },
   "metrics": {},
   "runs": 0,
   "current": {
     "sprint_index": 6,
-    "task_index": 0,
+    "task_index": 1,
     "sprint_id": "sprint-7",
     "sprint_name": "Zone and live evaluation",
     "rule": "zone_entry",
-    "task_id": "sprint-7.1",
-    "task_title": "Add live zone-entry evaluation",
-    "goal": "Cover the live camera path for zone entry, including polygon geometry, entry direction, and event matching.",
-    "exit": "Live-path evaluation and regression tests."
+    "task_id": "sprint-7.2",
+    "task_title": "Close zone-entry accuracy gaps",
+    "goal": "Fix the largest measured zone-entry accuracy gap without touching live camera configuration or frontend code.",
+    "exit": "Measured improvement and no test regression."
   }
 }
