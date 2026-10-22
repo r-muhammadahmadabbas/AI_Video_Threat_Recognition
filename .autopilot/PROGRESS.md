@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-22T02:40:22+00:00
-- Status: running
-- Progress: 16/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 8/8 (Regression and final report) / Task 2 (Write the final accuracy report and next backlog)
-- Last result: approved: Sprint 8.1 adds a reproducible offline regression runner that re-scores all 5 event/clip benchmarks from committed GT/predictions (5 reproduced, 0 mismatched), marks the 4 asset-blocked benchmarks not_run with named reasons, and updates the scoreboard — all gates, guardian, and evaluator checks pass.
+- Updated: 2026-10-22T02:56:56+00:00
+- Status: complete
+- Progress: 17/17 tasks, 0 blocked, 0 runs
+- Current: none
+- Last result: approved: Sprint 8.2 adds a two-file final accuracy report plus a sync test that ties the report to committed evidence (5 reproduced / 0 mismatched / 4 not-run benchmarks, stored AP, not_run calibration) and a P0/P1/P2 backlog, with accuracy explicitly not measured because model weights and labelled datasets are missing.
 
 ## Sprint board
 
@@ -26,4 +26,4 @@
 | Zone and live evaluation | Add live zone-entry evaluation | done |
 | Zone and live evaluation | Close zone-entry accuracy gaps | done |
 | Regression and final report | Run the full accuracy regression | done |
-| Regression and final report | Write the final accuracy report and next backlog | current |
+| Regression and final report | Write the final accuracy report and next backlog | done |

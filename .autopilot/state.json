@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "status": "running",
+  "status": "complete",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T02:40:22+00:00",
-  "sprint_index": 7,
-  "task_index": 1,
+  "updated_at": "2026-10-22T02:56:56+00:00",
+  "sprint_index": 8,
+  "task_index": 0,
   "attempts": 0,
   "completed": [
     "sprint-1.1",
@@ -22,31 +22,22 @@
     "sprint-6.2",
     "sprint-7.1",
     "sprint-7.2",
-    "sprint-8.1"
+    "sprint-8.1",
+    "sprint-8.2"
   ],
   "blocked": [],
   "last_result": {
     "status": "approved",
-    "task": "sprint-8.1",
-    "reason": "Sprint 8.1 adds a reproducible offline regression runner that re-scores all 5 event/clip benchmarks from committed GT/predictions (5 reproduced, 0 mismatched), marks the 4 asset-blocked benchmarks not_run with named reasons, and updates the scoreboard \u2014 all gates, guardian, and evaluator checks pass."
+    "task": "sprint-8.2",
+    "reason": "Sprint 8.2 adds a two-file final accuracy report plus a sync test that ties the report to committed evidence (5 reproduced / 0 mismatched / 4 not-run benchmarks, stored AP, not_run calibration) and a P0/P1/P2 backlog, with accuracy explicitly not measured because model weights and labelled datasets are missing."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 397
+    "diff_lines": 188
   },
   "metrics": {},
   "runs": 0,
-  "current": {
-    "sprint_index": 7,
-    "task_index": 1,
-    "sprint_id": "sprint-8",
-    "sprint_name": "Regression and final report",
-    "rule": "all",
-    "task_id": "sprint-8.2",
-    "task_title": "Write the final accuracy report and next backlog",
-    "goal": "Write a concise report covering what improved, what is still blocked, the exact evidence, and the next three experiments.",
-    "exit": "Report committed with a prioritized backlog."
-  }
+  "current": null
 }
