@@ -8,6 +8,16 @@ Generated from `backend/eval_results` by `python -m scripts.eval.scoreboard`.
 - fall_events_urfd_5fps_overlap: no matching raw prediction file is stored, and the c40/c60 prediction files do not reproduce these counts
 - person-down threshold calibration status: not_run
 - person-down calibration reason: model weights, labelled validation/holdout clips, and a validation/holdout split manifest are absent; the stored c40/c60 reports cover the whole URFD benchmark, so they cannot serve as split evidence
+- person-down stored threshold tradeoff: the stored threshold reports cover the whole URFD benchmark; this is a stored precision/recall tradeoff, not a validation/holdout calibration, and no threshold was selected from it
+
+## Person-down stored threshold tradeoff
+
+the stored threshold reports cover the whole URFD benchmark; this is a stored precision/recall tradeoff, not a validation/holdout calibration, and no threshold was selected from it.
+
+| Threshold | Benchmark | TP | FP | FN | Precision | Recall | F1 | False alarms / 10 min |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 0.40 | `fall_events_urfd_5fps_c40` | 23 | 30 | 7 | 0.4340 | 0.7667 | 0.5542 | 45.1543 |
+| 0.60 | `fall_events_urfd_5fps_c60` | 21 | 22 | 9 | 0.4884 | 0.7000 | 0.5753 | 33.1131 |
 
 | Benchmark | Kind | Precision | Recall | F1 | False alarms / 10 min | Latency (ms) | mAP |
 | --- | --- | --- | --- | --- | --- | --- | --- |

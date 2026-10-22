@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-22T00:19:08+00:00
+- Updated: 2026-10-22T00:32:04+00:00
 - Status: running
-- Progress: 8/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 4/8 (Fall accuracy) / Task 2 (Calibrate fall confidence)
-- Last result: approved: Approve sprint-4.1 as correctness/test work: person_down gains a weak-band fall-score EMA with upright-pose reset for sitting/kneeling/crouching rejection; all deterministic gates pass, but accuracy was NOT measured because backend/models is missing, so no recall or precision claim is made.
+- Progress: 9/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 5/8 (Loitering and crowd accuracy) / Task 1 (Improve loitering trajectory evidence)
+- Last result: approved: Sprint 4/8 task 2 is approved: the change adds a clearly labelled stored-benchmark fall precision/recall tradeoff table (c40/c60) and a regenerated, reproducible BASELINE_SCOREBOARD.md with regression tests, and it selects no threshold and makes no accuracy claim.
 
 ## Sprint board
 
@@ -18,8 +18,8 @@
 | Fight false-alarm reduction | Reduce fight false alarms on normal motion | done |
 | Fight false-alarm reduction | Improve fight temporal fusion | done |
 | Fall accuracy | Improve fall recall without adding false alarms | done |
-| Fall accuracy | Calibrate fall confidence | current |
-| Loitering and crowd accuracy | Improve loitering trajectory evidence | pending |
+| Fall accuracy | Calibrate fall confidence | done |
+| Loitering and crowd accuracy | Improve loitering trajectory evidence | current |
 | Loitering and crowd accuracy | Improve crowd anomaly baseline | pending |
 | Weapon accuracy | Improve weapon temporal evidence | pending |
 | Weapon accuracy | Calibrate weapon threshold | pending |

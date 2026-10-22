@@ -139,3 +139,33 @@ def test_committed_calibration_report_is_explicit_and_matches_defaults() -> None
     notes = build_scoreboard(EVAL_RESULTS)["notes"]
     assert any("calibration status: not_run" in note for note in notes)
     assert any("calibration reason:" in note for note in notes)
+
+
+def test_committed_benchmark_tradeoff_matches_stored_reports() -> None:
+    report = json.loads(
+        (EVAL_RESULTS / "person_down_calibration.json").read_text(encoding="utf-8")
+    )
+    tradeoff = report["benchmark_tradeoff"]
+
+    assert tradeoff["status"] == "stored_benchmark_only"
+    assert tradeoff["selected_threshold"] is None
+    assert [row["threshold"] for row in tradeoff["rows"]] == [0.4, 0.6]
+    assert tradeoff == build_scoreboard(EVAL_RESULTS)["fall_threshold_tradeoff"]
+
+    for row in tradeoff["rows"]:
+        source = json.loads(
+            (EVAL_RESULTS / f"{row['benchmark']}.json").read_text(encoding="utf-8")
+        )
+        scores = source["metrics"]["per_type"]["person_down"]
+        for field in (
+            "true_positives",
+            "false_positives",
+            "false_negatives",
+            "precision",
+            "recall",
+            "f1",
+        ):
+            assert row[field] == scores[field]
+        assert row["false_alarms_per_10_minutes"] == pytest.approx(
+            source["metrics"]["false_alarms_per_minute"] * 10.0
+        )

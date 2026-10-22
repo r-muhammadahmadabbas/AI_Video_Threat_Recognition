@@ -7,6 +7,37 @@
   "selected_threshold": null,
   "validation": null,
   "holdout": null,
+  "benchmark_tradeoff": {
+    "status": "stored_benchmark_only",
+    "reason": "the stored threshold reports cover the whole URFD benchmark; this is a stored precision/recall tradeoff, not a validation/holdout calibration, and no threshold was selected from it",
+    "selected_threshold": null,
+    "rows": [
+      {
+        "threshold": 0.4,
+        "benchmark": "fall_events_urfd_5fps_c40",
+        "source": "backend/eval_results/fall_events_urfd_5fps_c40.json",
+        "true_positives": 23,
+        "false_positives": 30,
+        "false_negatives": 7,
+        "precision": 0.4339622641509434,
+        "recall": 0.7666666666666667,
+        "f1": 0.5542168674698795,
+        "false_alarms_per_10_minutes": 45.15427711347102
+      },
+      {
+        "threshold": 0.6,
+        "benchmark": "fall_events_urfd_5fps_c60",
+        "source": "backend/eval_results/fall_events_urfd_5fps_c60.json",
+        "true_positives": 21,
+        "false_positives": 22,
+        "false_negatives": 9,
+        "precision": 0.4883720930232558,
+        "recall": 0.7,
+        "f1": 0.5753424657534246,
+        "false_alarms_per_10_minutes": 33.113136549878746
+      }
+    ]
+  },
   "current_thresholds": {
     "aspect_ratio_threshold": 1.2,
     "min_frames_down": 3,

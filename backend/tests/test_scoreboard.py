@@ -123,6 +123,38 @@ def test_metrics_without_counts_are_missing_not_perfect(tmp_path: Path) -> None:
         assert "TP/FP/FN" in row["missing"][field]
 
 
+def test_stored_fall_tradeoff_is_benchmark_only_and_uses_report_counts() -> None:
+    scoreboard = build_scoreboard(EVAL_RESULTS)
+    tradeoff = scoreboard["fall_threshold_tradeoff"]
+
+    assert tradeoff["status"] == "stored_benchmark_only"
+    assert tradeoff["selected_threshold"] is None
+    assert [row["threshold"] for row in tradeoff["rows"]] == [0.4, 0.6]
+
+    for row in tradeoff["rows"]:
+        report = json.loads(
+            (EVAL_RESULTS / f"{row['benchmark']}.json").read_text(encoding="utf-8")
+        )
+        scores = report["metrics"]["per_type"]["person_down"]
+        for field in (
+            "true_positives",
+            "false_positives",
+            "false_negatives",
+            "precision",
+            "recall",
+            "f1",
+        ):
+            assert row[field] == scores[field]
+        assert row["false_alarms_per_10_minutes"] == pytest.approx(
+            report["metrics"]["false_alarms_per_minute"] * 10.0
+        )
+
+    markdown = render_markdown(scoreboard)
+    assert "## Person-down stored threshold tradeoff" in markdown
+    assert "not a validation/holdout calibration" in markdown
+    assert "| 0.40 | `fall_events_urfd_5fps_c40` | 23 | 30 | 7 |" in markdown
+
+
 def test_committed_scoreboard_matches_current_results() -> None:
     scoreboard = build_scoreboard(EVAL_RESULTS)
     committed = (EVAL_RESULTS / "BASELINE_SCOREBOARD.md").read_text(encoding="utf-8")

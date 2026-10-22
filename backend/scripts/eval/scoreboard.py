@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -31,6 +32,58 @@ REPRODUCTION_NOTES = {
     ),
 }
 CALIBRATION_FILENAME = "person_down_calibration.json"
+FALL_TRADEOFF_PREFIX = "fall_events_urfd_5fps_c"
+FALL_TRADEOFF_FIELDS = (
+    "true_positives",
+    "false_positives",
+    "false_negatives",
+    "precision",
+    "recall",
+    "f1",
+    "false_alarms_per_10_minutes",
+)
+STORED_TRADEOFF_REASON = (
+    "the stored threshold reports cover the whole URFD benchmark; this is a "
+    "stored precision/recall tradeoff, not a validation/holdout calibration, "
+    "and no threshold was selected from it"
+)
+
+
+def _threshold_from_benchmark(name: str) -> float | None:
+    """Recover the fall-model threshold encoded as ``..._c40``/``..._c60``."""
+    match = re.fullmatch(rf"{re.escape(FALL_TRADEOFF_PREFIX)}(\d+)", name)
+    if match is None:
+        return None
+    return int(match.group(1)) / 100.0
+
+
+def stored_fall_threshold_tradeoff(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Collect real c40/c60 counts into a benchmark-only fall tradeoff table.
+
+    These reports cover the whole URFD benchmark, so the table deliberately
+    has no ``selected_threshold``. Using it to pick an operating point would
+    tune on the evaluation set.
+    """
+    table = []
+    for row in rows:
+        threshold = _threshold_from_benchmark(row["benchmark"])
+        if threshold is None or row["precision"] is None:
+            continue
+        table.append(
+            {
+                "threshold": threshold,
+                "benchmark": row["benchmark"],
+                "source": row["source"],
+                **{field: row[field] for field in FALL_TRADEOFF_FIELDS},
+            }
+        )
+    table.sort(key=lambda entry: entry["threshold"])
+    return {
+        "status": "stored_benchmark_only",
+        "reason": STORED_TRADEOFF_REASON,
+        "selected_threshold": None,
+        "rows": table,
+    }
 
 
 def _missing(row: dict[str, Any], field: str, reason: str) -> None:
@@ -99,6 +152,13 @@ def _row_from_report(path: Path, data: dict[str, Any]) -> dict[str, Any]:
     else:
         scores = metrics.get("overall", metrics)
         verified = _scores_from_counts(scores)
+        counts = _counts(scores)
+        if counts is not None:
+            (
+                row["true_positives"],
+                row["false_positives"],
+                row["false_negatives"],
+            ) = counts
         for field in SCORE_FIELDS:
             if verified is None:
                 _missing(row, field, MISSING_COUNTS_REASON)
@@ -151,6 +211,7 @@ def _calibration_notes(results_dir: Path) -> list[str]:
 
 def build_scoreboard(results_dir: Path) -> dict[str, Any]:
     rows = [_row_from_report(path, data) for path, data in load_reports(results_dir)]
+    tradeoff = stored_fall_threshold_tradeoff(rows)
     notes = [
         "metrics are transcribed from existing reports; the offline harness "
         "was not rerun because model weights are missing",
@@ -164,7 +225,14 @@ def build_scoreboard(results_dir: Path) -> dict[str, Any]:
         if row["benchmark"] in REPRODUCTION_NOTES
     )
     notes.extend(_calibration_notes(results_dir))
-    return {"generated_from": SOURCE_DIRECTORY, "notes": notes, "benchmarks": rows}
+    if tradeoff["rows"]:
+        notes.append(f"person-down stored threshold tradeoff: {tradeoff['reason']}")
+    return {
+        "generated_from": SOURCE_DIRECTORY,
+        "notes": notes,
+        "fall_threshold_tradeoff": tradeoff,
+        "benchmarks": rows,
+    }
 
 
 def _format(value: Any) -> str:
@@ -189,6 +257,30 @@ def render_markdown(scoreboard: dict[str, Any]) -> str:
         "",
     ]
     lines.extend(f"- {note}" for note in scoreboard["notes"])
+    tradeoff = scoreboard.get("fall_threshold_tradeoff") or {}
+    if tradeoff.get("rows"):
+        lines.extend(
+            [
+                "",
+                "## Person-down stored threshold tradeoff",
+                "",
+                f"{tradeoff['reason']}.",
+                "",
+                "| Threshold | Benchmark | TP | FP | FN | Precision | Recall "
+                "| F1 | False alarms / 10 min |",
+                "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+            ]
+        )
+        lines.extend(
+            (
+                f"| {row['threshold']:.2f} | `{row['benchmark']}` "
+                f"| {row['true_positives']} | {row['false_positives']} "
+                f"| {row['false_negatives']} | {_format(row['precision'])} "
+                f"| {_format(row['recall'])} | {_format(row['f1'])} "
+                f"| {_format(row['false_alarms_per_10_minutes'])} |"
+            )
+            for row in tradeoff["rows"]
+        )
     lines.extend(
         [
             "",
