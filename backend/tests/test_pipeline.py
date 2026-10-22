@@ -154,18 +154,47 @@ class TestRuleEvents:
         for second in range(3):
             pipeline.process_frame(FRAME, float(second))
 
+        # One missed classifier frame does not split the episode.
         analyzer.violence = False
         pipeline.process_frame(FRAME, 3.0)
-
         analyzer.violence = True
         pipeline.process_frame(FRAME, 4.0)
         pipeline.process_frame(FRAME, 5.0)
+
+        # A sustained run of negatives closes it, so the next fight is new.
+        analyzer.violence = False
+        pipeline.process_frame(FRAME, 6.0)
+        pipeline.process_frame(FRAME, 7.0)
+        analyzer.violence = True
+        pipeline.process_frame(FRAME, 8.0)
+        pipeline.process_frame(FRAME, 9.0)
 
         violence_events = [
             e for e in pipeline.events if e.rule == "violence_detected"
         ]
         assert len(violence_events) == 2
         assert violence_events[0].tracker_ids == [1]
+        assert violence_events[0].details["positive_hits"] == 2
+        assert violence_events[0].details["smoothed_score"] == 0.75
+        assert violence_events[1].timestamp == 9.0
+
+    def test_single_negative_does_not_reset_smoothed_evidence(
+        self, pipeline, analyzer
+    ):
+        analyzer.violence = True
+        pipeline.process_frame(FRAME, 0.0)
+        analyzer.violence = False
+        pipeline.process_frame(FRAME, 1.0)
+        analyzer.violence = True
+        pipeline.process_frame(FRAME, 2.0)
+
+        violence_events = [
+            e for e in pipeline.events if e.rule == "violence_detected"
+        ]
+        assert len(violence_events) == 1
+        assert violence_events[0].timestamp == 2.0
+        assert violence_events[0].details["positive_hits"] == 2
+        assert violence_events[0].details["smoothed_score"] == 0.625
 
     def test_single_frame_violence_hit_is_ignored(self, pipeline, analyzer):
         analyzer.violence = True

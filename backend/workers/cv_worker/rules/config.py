@@ -288,6 +288,15 @@ class FightConfig(BaseModel):
             evidence, kept short so a bad fall frame cannot hide a fight.
         strong_fall_confidence: fall-model confidence from which the long veto
             applies.
+        smoothing_decay: weight kept on the previous smoothed score. The score
+            rises on a positive model frame and decays on a negative one, so a
+            single missed classifier frame does not split one fight into two
+            episodes. Zero disables smoothing and makes every checked frame a
+            hard positive or negative.
+        min_smoothed_score: smoothed evidence required to open a trigger.
+        exit_smoothed_score: smoothed evidence below which an active episode
+            closes. Keeping this below ``min_smoothed_score`` gives the score
+            hysteresis, so a brief negative does not immediately end an alert.
         cooldown_seconds: minimum gap between two triggers.
     """
 
@@ -306,11 +315,24 @@ class FightConfig(BaseModel):
     fall_suppression_seconds: float = Field(default=3.0, ge=0.0)
     weak_fall_suppression_seconds: float = Field(default=1.0, ge=0.0)
     strong_fall_confidence: float = Field(default=0.60, ge=0.0, le=1.0)
+    smoothing_decay: float = Field(default=0.5, ge=0.0, lt=1.0)
+    min_smoothed_score: float = Field(default=0.5, gt=0.0, le=1.0)
+    exit_smoothed_score: float = Field(default=0.25, ge=0.0, lt=1.0)
     cooldown_seconds: float = Field(default=60.0, ge=0.0)
 
     @model_validator(mode="after")
     def _exit_must_be_tighter_than_entry(self) -> FightConfig:
         _require_ordered_margins(self.entry_margin, self.exit_margin)
+        return self
+
+    @model_validator(mode="after")
+    def _score_exit_must_not_exceed_entry(self) -> FightConfig:
+        if self.exit_smoothed_score > self.min_smoothed_score:
+            raise ValueError(
+                "exit_smoothed_score must not exceed min_smoothed_score, "
+                "otherwise the smoothed evidence rings invert and an episode "
+                "can close before it is allowed to open"
+            )
         return self
 
 

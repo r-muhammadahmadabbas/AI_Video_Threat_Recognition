@@ -1,9 +1,13 @@
 """Fight detection from the violence classifier's per-frame verdict.
 
 The classifier fires on individual frames; a fight is a sustained episode.
-This rule requires ``min_consecutive_frames`` positive frames in a row, emits
-one trigger when that run starts, and stays quiet until a non-positive frame
-closes the episode (plus the usual cooldown).
+This rule requires ``min_consecutive_frames`` positive model frames and a
+smoothed evidence score above ``min_smoothed_score``, emits one trigger when
+that evidence first becomes strong enough, and stays quiet until the score
+decays below ``exit_smoothed_score`` (plus the usual cooldown). The decay is
+what stops one missed classifier frame from splitting a real fight into two
+episodes, while the exit threshold still closes an episode after sustained
+negatives.
 
 A frame-level classifier also marks normal fast motion, coordinated crowd
 movement, hugging and camera shake. The classifier verdict is therefore only a
@@ -36,6 +40,36 @@ class _TrackMotion:
 
 
 @dataclass
+class FightScoreSmoother:
+    """Smoothed fight evidence over checked classifier frames.
+
+    Positive and negative model verdicts update an exponential moving average.
+    ``positive_hits`` counts positives since the evidence last expired, so a
+    single negative does not erase the model evidence that preceded it. The
+    owning rule decides when an *active* episode ends; this object only supplies
+    the score, hit count and an ``expired`` test for the lower hysteresis edge.
+    """
+
+    decay: float
+    score: float = 0.0
+    positive_hits: int = 0
+
+    def observe(self, detected: bool) -> None:
+        target = 1.0 if detected else 0.0
+        self.score = self.decay * self.score + (1.0 - self.decay) * target
+        if detected:
+            self.positive_hits += 1
+
+    def expired(self, exit_score: float) -> bool:
+        """Whether the smoothed evidence has fallen below the exit edge."""
+        return self.score < exit_score
+
+    def reset(self) -> None:
+        self.score = 0.0
+        self.positive_hits = 0
+
+
+@dataclass
 class FightRule(BehaviorRule):
     """Opens one trigger per sustained run of qualifying violence-model hits."""
 
@@ -49,6 +83,7 @@ class FightRule(BehaviorRule):
     def __post_init__(self) -> None:
         self._streak = 0
         self._active = False
+        self._evidence = FightScoreSmoother(self.config.smoothing_decay)
         self._last_triggered_at: float | None = None
         self._last_fall_at: float | None = None
         self._last_strong_fall_at: float | None = None
@@ -88,8 +123,7 @@ class FightRule(BehaviorRule):
         if weak_fall_recent or strong_fall_recent:
             # A fall also looks violent to the classifier; keep the single
             # person-down alert instead of adding a fight alert.
-            self._streak = 0
-            self._active = False
+            self._reset_episode()
             return []
 
         checked = [
@@ -115,12 +149,24 @@ class FightRule(BehaviorRule):
             and observation.track.confidence >= self.config.min_confidence
         ]
 
-        if len(eligible) > self.config.max_zone_tracks or not flagged:
-            # A frame-level classifier marks everyone in a busy scene. Treat
-            # that as crowd movement, not as a specific fight. No flagged
-            # track means the episode is over.
-            self._streak = 0
+        self._streak = self._streak + 1 if flagged else 0
+        self._evidence.observe(bool(flagged))
+        if self._evidence.expired(self.config.exit_smoothed_score):
+            # Sustained negatives have exhausted the smoothed evidence. Close
+            # the episode and clear accumulated hits so the next fight must
+            # build its own evidence instead of reusing this one.
             self._active = False
+            self._evidence.reset()
+
+        if not flagged or len(eligible) > self.config.max_zone_tracks:
+            if len(eligible) > self.config.max_zone_tracks:
+                # A frame-level classifier marks everyone in a busy scene.
+                # Treat that as crowd movement, not as a specific fight.
+                self._reset_episode()
+            # Otherwise a single missed model frame can leave the episode
+            # active because the score is still above the exit edge; keep
+            # waiting for the next hit instead of emitting a second trigger
+            # for the same fight.
             return []
 
         interaction = self._find_interaction(flagged)
@@ -128,19 +174,17 @@ class FightRule(BehaviorRule):
             if self._has_motion_history():
                 # The model says "violence" but there is no pair of nearby
                 # people moving differently. This is the normal-fast-motion,
-                # hugging, camera-shake and crowd case; drop the streak so a
-                # later normal movement cannot reuse stale classifier evidence.
-                self._streak = 0
-                self._active = False
-            else:
-                # First frame of a track has no velocity yet. It still counts
-                # as classifier persistence, but cannot open a trigger alone.
-                self._streak += 1
+                # hugging, camera-shake and crowd case; drop the evidence so a
+                # later normal movement cannot reuse stale classifier hits.
+                self._reset_episode()
+            # Otherwise the first frame of a track has no velocity yet. Its
+            # positive verdict remains in the smoothed evidence, but it cannot
+            # open a trigger without an interacting pair.
             return []
 
-        self._streak += 1
         if (
-            self._streak < self.config.min_consecutive_frames
+            self._evidence.positive_hits < self.config.min_consecutive_frames
+            or self._evidence.score < self.config.min_smoothed_score
             or self._active
             or (
                 self._last_triggered_at is not None
@@ -168,6 +212,9 @@ class FightRule(BehaviorRule):
                     "event": "fight",
                     "source": "violence_model",
                     "consecutive_frames": self._streak,
+                    "positive_hits": self._evidence.positive_hits,
+                    "smoothed_score": round(self._evidence.score, 3),
+                    "smoothed_score_threshold": self.config.min_smoothed_score,
                     "interacting_tracker_ids": list(interaction["tracker_ids"]),
                     "pair_distance_px": round(interaction["distance"], 2),
                     "relative_speed_px_per_s": round(
@@ -277,9 +324,13 @@ class FightRule(BehaviorRule):
 
         return best
 
-    def reset(self) -> None:
+    def _reset_episode(self) -> None:
         self._streak = 0
         self._active = False
+        self._evidence.reset()
+
+    def reset(self) -> None:
+        self._reset_episode()
         self._last_triggered_at = None
         self._last_fall_at = None
         self._last_strong_fall_at = None

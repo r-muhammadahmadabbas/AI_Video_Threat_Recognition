@@ -24,12 +24,14 @@ from workers.cv_worker.enrichment import apply_enrichment
 from workers.cv_worker.rules.base import Zone
 from workers.cv_worker.rules.config import (
     CrowdAnomalyConfig,
+    FightConfig,
     LoiterConfig,
     PersonDownConfig,
     WeaponConfig,
 )
 from workers.cv_worker.rules.crowd import CrowdMotionRule
 from workers.cv_worker.rules.engine import RuleEngine
+from workers.cv_worker.rules.fight import FightScoreSmoother
 from workers.cv_worker.rules.geometry import Polygon
 from workers.cv_worker.rules.loitering import LoiterRule
 from workers.cv_worker.rules.person_down import PersonDownRule
@@ -52,12 +54,6 @@ UPLOAD_ZONE_ID = "upload-full-frame"
 #: P=0.49 R=0.70 F1=0.58, versus P=0.43 R=0.77 F1=0.55 when every 0.40 hit
 #: raised an incident.
 FALL_CONFIDENCE = 0.40
-
-#: Consecutive violence-model hits required before an event opens. A single
-#: frame of a fast movement is not a fight; two hits in a row filter blips
-#: but still catch short (5 s) clips, where a 1 Hz cadence often samples the
-#: fight only once.
-VIOLENCE_PERSISTENCE = 2
 
 #: A fall (or even a false fall-model hit on stumbling motion) makes the
 #: violence classifier see "fight". Suppress violence events while fall-model
@@ -171,6 +167,10 @@ class DetectionPipeline:
         self._person_down_config = PersonDownConfig()
         self._engine: RuleEngine | None = None
         self._last_timestamp: float | None = None
+        self._fight_config = FightConfig()
+        self._violence_evidence = FightScoreSmoother(
+            self._fight_config.smoothing_decay
+        )
         self._violence_streak = 0
         self._violence_active = False
         self._last_fall_evidence_at: float | None = None
@@ -185,6 +185,7 @@ class DetectionPipeline:
         # re-resolved for it rather than kept at the previous clip's resolution.
         self._engine = None
         self._last_timestamp = None
+        self._violence_evidence.reset()
         self._violence_streak = 0
         self._violence_active = False
         self._last_fall_evidence_at = None
@@ -235,30 +236,48 @@ class DetectionPipeline:
         if analysis.violence_checked:
             if fall_recent:
                 self._violence_streak = 0
+                self._violence_active = False
+                self._violence_evidence.reset()
             else:
                 self._violence_streak = (
                     self._violence_streak + 1 if analysis.violence else 0
                 )
-            if (
-                self._violence_streak >= VIOLENCE_PERSISTENCE
-                and not self._violence_active
-            ):
-                self._violence_active = True
-                self.events.append(
-                    RuleEvent(
-                        rule="violence_detected",
-                        severity="high",
-                        timestamp=timestamp,
-                        tracker_ids=[t.tracker_id for t in snapshot.tracked],
-                        details={
-                            "event": "violence_detected",
-                            "source": "violence_model",
-                            "consecutive_frames": self._violence_streak,
-                        },
+                self._violence_evidence.observe(analysis.violence)
+                if self._violence_evidence.expired(
+                    self._fight_config.exit_smoothed_score
+                ):
+                    self._violence_active = False
+                    self._violence_evidence.reset()
+                if (
+                    self._violence_evidence.positive_hits
+                    >= self._fight_config.min_consecutive_frames
+                    and self._violence_evidence.score
+                    >= self._fight_config.min_smoothed_score
+                    and not self._violence_active
+                ):
+                    self._violence_active = True
+                    self.events.append(
+                        RuleEvent(
+                            rule="violence_detected",
+                            severity="high",
+                            timestamp=timestamp,
+                            tracker_ids=[t.tracker_id for t in snapshot.tracked],
+                            details={
+                                "event": "violence_detected",
+                                "source": "violence_model",
+                                "consecutive_frames": self._violence_streak,
+                                "positive_hits": (
+                                    self._violence_evidence.positive_hits
+                                ),
+                                "smoothed_score": round(
+                                    self._violence_evidence.score, 3
+                                ),
+                                "smoothed_score_threshold": (
+                                    self._fight_config.min_smoothed_score
+                                ),
+                            },
+                        )
                     )
-                )
-            if self._violence_streak == 0:
-                self._violence_active = False
 
         detections = self._detections(snapshot, analysis, timestamp)
         annotated = self._annotate(frame, snapshot, analysis)

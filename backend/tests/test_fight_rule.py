@@ -91,6 +91,9 @@ class TestFightConfig:
         assert config.min_movement_px_per_s == 20.0
         assert config.min_relative_speed_px_per_s == 60.0
         assert config.speed_window_seconds == 1.0
+        assert config.smoothing_decay == 0.5
+        assert config.min_smoothed_score == 0.5
+        assert config.exit_smoothed_score == 0.25
 
     def test_rejects_invalid_thresholds(self):
         with pytest.raises(ValueError, match="min_consecutive_frames"):
@@ -99,6 +102,10 @@ class TestFightConfig:
             FightConfig(max_zone_tracks=1)
         with pytest.raises(ValueError, match="speed_window_seconds"):
             FightConfig(speed_window_seconds=0.0)
+        with pytest.raises(ValueError, match="smoothing_decay"):
+            FightConfig(smoothing_decay=1.0)
+        with pytest.raises(ValueError, match="exit_smoothed_score"):
+            FightConfig(min_smoothed_score=0.3, exit_smoothed_score=0.4)
         with pytest.raises(ValueError, match="unknown"):
             FightConfig(unknown=1)
 
@@ -132,11 +139,24 @@ class TestFightRule:
         assert rule.update(unchecked, 0.0) == []
         assert rule.update(unchecked, 0.2) == []
 
-    def test_checked_negative_resets_the_streak(self):
+    def test_single_negative_does_not_reset_smoothed_evidence(self):
         rule = make_rule()
         rule.update(converging_pair(0), 0.0)
         rule.update(pair((110.0, 160.0), (210.0, 160.0), violence=False), 0.2)
-        assert rule.update(converging_pair(3), 0.4) == []
+        triggers = rule.update(converging_pair(2), 0.4)
+
+        assert len(triggers) == 1
+        assert triggers[0].details["positive_hits"] == 2
+        assert triggers[0].details["consecutive_frames"] == 1
+        assert triggers[0].details["smoothed_score"] == 0.625
+
+    def test_sustained_negatives_reset_the_streak(self):
+        rule = make_rule()
+        rule.update(converging_pair(0), 0.0)
+        rule.update(converging_pair(1), 0.2)
+        rule.update(pair((120.0, 160.0), (200.0, 160.0), violence=False), 0.4)
+        rule.update(pair((125.0, 160.0), (195.0, 160.0), violence=False), 0.6)
+        assert rule.update(converging_pair(4), 0.8) == []
 
     def test_fall_evidence_suppresses_fight(self):
         rule = make_rule()
@@ -192,6 +212,9 @@ class TestFightRule:
         assert triggers[0].rule_id == "fight"
         assert triggers[0].details["source"] == "violence_model"
         assert triggers[0].details["consecutive_frames"] == 2
+        assert triggers[0].details["positive_hits"] == 2
+        assert triggers[0].details["smoothed_score"] == 0.75
+        assert triggers[0].details["smoothed_score_threshold"] == 0.5
         assert triggers[0].details["interacting_tracker_ids"] == [1, 2]
         assert triggers[0].details["pair_distance_px"] == 100.0
         assert triggers[0].details["relative_speed_px_per_s"] == 100.0
@@ -209,16 +232,18 @@ class TestFightRule:
         rule.update(converging_pair(0), 0.0)
         rule.update(converging_pair(1), 0.2)
         rule.update(pair((120.0, 160.0), (200.0, 160.0), violence=False), 0.4)
-        rule.update(converging_pair(3), 0.6)
-        assert len(rule.update(converging_pair(4), 0.8)) == 1
+        rule.update(pair((125.0, 160.0), (195.0, 160.0), violence=False), 0.6)
+        rule.update(converging_pair(4), 0.8)
+        assert len(rule.update(converging_pair(5), 1.0)) == 1
 
     def test_cooldown_blocks_quick_new_episode(self):
         rule = make_rule(cooldown_seconds=10.0)
         rule.update(converging_pair(0), 0.0)
         rule.update(converging_pair(1), 0.2)
         rule.update(pair((120.0, 160.0), (200.0, 160.0), violence=False), 0.4)
-        rule.update(converging_pair(3), 0.6)
-        assert rule.update(converging_pair(4), 0.8) == []
+        rule.update(pair((125.0, 160.0), (195.0, 160.0), violence=False), 0.6)
+        rule.update(converging_pair(4), 0.8)
+        assert rule.update(converging_pair(5), 1.0) == []
 
     def test_outside_zone_is_ignored(self):
         rule = make_rule()
