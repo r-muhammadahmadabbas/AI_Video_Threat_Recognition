@@ -1,10 +1,12 @@
 # Autopilot progress
 
-- Updated: 2026-10-22T01:07:02+00:00
+- Updated: 2026-10-22T01:23:50+00:00
 - Status: running
-- Progress: 11/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 6/8 (Weapon accuracy) / Task 1 (Improve weapon temporal evidence)
-- Last result: approved: Crowd anomaly scoring now uses per-zone density (people per megapixel of the bound zone footprint) and one-sided motion baselines instead of raw person count, with the engine binding the resolved zone via a new optional bind_zone() hook and 5 new regression tests; all gates pass and accuracy was not measured because model weights and labelled clips are missing.
+- Progress: 12/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 6/8 (Weapon accuracy) / Task 2 (Calibrate weapon threshold)
+- Last result: blocked: git apply --check failed: error: patch failed: backend/tests/test_analyzer.py:220
+error: backend/tests/test_analyzer.py: patch does not apply
+
 
 ## Sprint board
 
@@ -21,8 +23,8 @@
 | Fall accuracy | Calibrate fall confidence | done |
 | Loitering and crowd accuracy | Improve loitering trajectory evidence | done |
 | Loitering and crowd accuracy | Improve crowd anomaly baseline | done |
-| Weapon accuracy | Improve weapon temporal evidence | current |
-| Weapon accuracy | Calibrate weapon threshold | pending |
+| Weapon accuracy | Improve weapon temporal evidence | done |
+| Weapon accuracy | Calibrate weapon threshold | current |
 | Zone and live evaluation | Add live zone-entry evaluation | pending |
 | Zone and live evaluation | Close zone-entry accuracy gaps | pending |
 | Regression and final report | Run the full accuracy regression | pending |

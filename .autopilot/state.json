@@ -2,10 +2,10 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T01:07:02+00:00",
+  "updated_at": "2026-10-22T01:23:50+00:00",
   "sprint_index": 5,
-  "task_index": 0,
-  "attempts": 0,
+  "task_index": 1,
+  "attempts": 1,
   "completed": [
     "sprint-1.1",
     "sprint-1.2",
@@ -17,31 +17,32 @@
     "sprint-4.1",
     "sprint-4.2",
     "sprint-5.1",
-    "sprint-5.2"
+    "sprint-5.2",
+    "sprint-6.1"
   ],
   "blocked": [],
   "last_result": {
-    "status": "approved",
-    "task": "sprint-5.2",
-    "reason": "Crowd anomaly scoring now uses per-zone density (people per megapixel of the bound zone footprint) and one-sided motion baselines instead of raw person count, with the engine binding the resolved zone via a new optional bind_zone() hook and 5 new regression tests; all gates pass and accuracy was not measured because model weights and labelled clips are missing."
+    "status": "blocked",
+    "task": "sprint-6.2",
+    "reason": "git apply --check failed: error: patch failed: backend/tests/test_analyzer.py:220\nerror: backend/tests/test_analyzer.py: patch does not apply\n"
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 226
+    "diff_lines": 280
   },
   "metrics": {},
   "runs": 0,
   "current": {
     "sprint_index": 5,
-    "task_index": 0,
+    "task_index": 1,
     "sprint_id": "sprint-6",
     "sprint_name": "Weapon accuracy",
     "rule": "weapon",
-    "task_id": "sprint-6.1",
-    "task_title": "Improve weapon temporal evidence",
-    "goal": "Reduce weapon false positives with temporal voting, person-weapon association, and hard negatives such as phones, tools, and holsters.",
-    "exit": "Targeted tests and event metrics."
+    "task_id": "sprint-6.2",
+    "task_title": "Calibrate weapon threshold",
+    "goal": "Calibrate the weapon event threshold on validation data without using the holdout split for tuning.",
+    "exit": "Calibration evidence and updated baseline."
   }
 }
