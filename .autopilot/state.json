@@ -2,10 +2,10 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T01:23:50+00:00",
-  "sprint_index": 5,
-  "task_index": 1,
-  "attempts": 1,
+  "updated_at": "2026-10-22T01:35:14+00:00",
+  "sprint_index": 6,
+  "task_index": 0,
+  "attempts": 0,
   "completed": [
     "sprint-1.1",
     "sprint-1.2",
@@ -18,31 +18,32 @@
     "sprint-4.2",
     "sprint-5.1",
     "sprint-5.2",
-    "sprint-6.1"
+    "sprint-6.1",
+    "sprint-6.2"
   ],
   "blocked": [],
   "last_result": {
-    "status": "blocked",
+    "status": "approved",
     "task": "sprint-6.2",
-    "reason": "git apply --check failed: error: patch failed: backend/tests/test_analyzer.py:220\nerror: backend/tests/test_analyzer.py: patch does not apply\n"
+    "reason": "Sprint 6.2 delivers test-backed not-run weapon calibration evidence and a regenerated baseline with no threshold selected, satisfying the exit criteria under the missing-assets protocol."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 280
+    "diff_lines": 162
   },
   "metrics": {},
   "runs": 0,
   "current": {
-    "sprint_index": 5,
-    "task_index": 1,
-    "sprint_id": "sprint-6",
-    "sprint_name": "Weapon accuracy",
-    "rule": "weapon",
-    "task_id": "sprint-6.2",
-    "task_title": "Calibrate weapon threshold",
-    "goal": "Calibrate the weapon event threshold on validation data without using the holdout split for tuning.",
-    "exit": "Calibration evidence and updated baseline."
+    "sprint_index": 6,
+    "task_index": 0,
+    "sprint_id": "sprint-7",
+    "sprint_name": "Zone and live evaluation",
+    "rule": "zone_entry",
+    "task_id": "sprint-7.1",
+    "task_title": "Add live zone-entry evaluation",
+    "goal": "Cover the live camera path for zone entry, including polygon geometry, entry direction, and event matching.",
+    "exit": "Live-path evaluation and regression tests."
   }
 }

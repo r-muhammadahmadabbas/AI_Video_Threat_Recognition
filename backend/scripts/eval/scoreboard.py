@@ -32,6 +32,11 @@ REPRODUCTION_NOTES = {
     ),
 }
 CALIBRATION_FILENAME = "person_down_calibration.json"
+WEAPON_CALIBRATION_FILENAME = "weapon_calibration.json"
+CALIBRATION_REPORTS = (
+    ("person-down", CALIBRATION_FILENAME),
+    ("weapon", WEAPON_CALIBRATION_FILENAME),
+)
 FALL_TRADEOFF_PREFIX = "fall_events_urfd_5fps_c"
 FALL_TRADEOFF_FIELDS = (
     "true_positives",
@@ -191,21 +196,23 @@ def load_reports(results_dir: Path) -> list[tuple[Path, dict[str, Any]]]:
 
 
 def _calibration_notes(results_dir: Path) -> list[str]:
-    """Surface the person-down calibration status without inventing metrics."""
-    path = results_dir / CALIBRATION_FILENAME
-    if not path.is_file():
-        return []
-    data = json.loads(path.read_text(encoding="utf-8"))
-    notes = [
-        f"person-down threshold calibration status: {data.get('status', 'unknown')}"
-    ]
-    if data.get("reason"):
-        notes.append(f"person-down calibration reason: {data['reason']}")
-    if data.get("selected_threshold") is not None:
+    """Surface each rule's calibration status without inventing metrics."""
+    notes: list[str] = []
+    for label, filename in CALIBRATION_REPORTS:
+        path = results_dir / filename
+        if not path.is_file():
+            continue
+        data = json.loads(path.read_text(encoding="utf-8"))
         notes.append(
-            "person-down threshold selected on validation: "
-            f"{data['selected_threshold']}"
+            f"{label} threshold calibration status: {data.get('status', 'unknown')}"
         )
+        if data.get("reason"):
+            notes.append(f"{label} calibration reason: {data['reason']}")
+        if data.get("selected_threshold") is not None:
+            notes.append(
+                f"{label} threshold selected on validation: "
+                f"{data['selected_threshold']}"
+            )
     return notes
 
 

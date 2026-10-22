@@ -8,6 +8,8 @@ Generated from `backend/eval_results` by `python -m scripts.eval.scoreboard`.
 - fall_events_urfd_5fps_overlap: no matching raw prediction file is stored, and the c40/c60 prediction files do not reproduce these counts
 - person-down threshold calibration status: not_run
 - person-down calibration reason: model weights, labelled validation/holdout clips, and a validation/holdout split manifest are absent; the stored c40/c60 reports cover the whole URFD benchmark, so they cannot serve as split evidence
+- weapon threshold calibration status: not_run
+- weapon calibration reason: model weights, labelled validation/holdout weapon event clips, and a validation/holdout split manifest are absent; weapons_val_500 stores image-level detection AP only and cannot select an event threshold, so no threshold was tuned and the holdout split was not used
 - person-down stored threshold tradeoff: the stored threshold reports cover the whole URFD benchmark; this is a stored precision/recall tradeoff, not a validation/holdout calibration, and no threshold was selected from it
 
 ## Person-down stored threshold tradeoff

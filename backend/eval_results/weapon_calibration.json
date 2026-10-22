@@ -1,0 +1,40 @@
+{
+  "rule": "weapon",
+  "event_type": "weapon",
+  "status": "not_run",
+  "reason": "model weights, labelled validation/holdout weapon event clips, and a validation/holdout split manifest are absent; weapons_val_500 stores image-level detection AP only and cannot select an event threshold, so no threshold was tuned and the holdout split was not used",
+  "selection_metric": "f1",
+  "selected_threshold": null,
+  "validation": null,
+  "holdout": null,
+  "current_thresholds": {
+    "dwell_seconds": 5.0,
+    "grace_seconds": 0.0,
+    "min_confidence": 0.25,
+    "cooldown_seconds": 300.0
+  },
+  "current_detector_thresholds": {
+    "confidence": 0.25,
+    "class_thresholds": {
+      "firearm": 0.35,
+      "melee_weapon": 0.35,
+      "explosive": 0.35,
+      "blunt_weapon": 0.35
+    }
+  },
+  "stored_detection_evidence": {
+    "status": "stored_benchmark_only",
+    "reason": "the stored weapons_val_500 report is image-level detection mAP at one confidence point, not event-level validation labelled for threshold selection",
+    "benchmark": "weapons_val_500",
+    "source": "backend/eval_results/weapons_val_500.json",
+    "confidence": 0.25,
+    "selected_threshold": null,
+    "mean_ap": 0.8544660312850185,
+    "per_class_ap": {
+      "blunt_weapon": 0.9546204620462058,
+      "explosive": 0.8703617749725854,
+      "firearm": 0.859770578870515,
+      "melee_weapon": 0.7331113092507677
+    }
+  }
+}
