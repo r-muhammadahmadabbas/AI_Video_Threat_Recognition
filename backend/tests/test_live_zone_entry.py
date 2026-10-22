@@ -124,6 +124,29 @@ class TestEntryDirection:
             pytest.approx(10.0),
         ]
 
+    def test_single_frame_tracker_dropout_does_not_duplicate_entry(self):
+        inside = TrackSample(0.0, 1, (350.0, 140.0, 430.0, 300.0))
+        samples = [
+            inside,
+            TrackSample(1.0, 1, inside.bbox),
+            # The tracker misses the frame at t=2 while the subject stays put.
+            TrackSample(3.0, 1, inside.bbox),
+        ]
+        result = evaluate_zone_entry(
+            samples,
+            pixel_zone(),
+            frame_width=WIDTH,
+            frame_height=HEIGHT,
+            config=ZoneEntryConfig(
+                min_frames_in_zone=1,
+                cooldown_seconds=0.0,
+                dropout_grace_seconds=2.0,
+            ),
+        )
+
+        assert len(result.triggers) == 1
+        assert len(result.events) == 1
+
 
 class TestEventMatching:
     def test_live_events_match_gt_and_round_trip_through_schema(self, tmp_path):

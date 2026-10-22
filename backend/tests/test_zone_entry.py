@@ -254,9 +254,13 @@ class TestStateManagement:
         rule.reset()
         assert rule.is_inside(1) is False
 
-    def test_state_forgotten_when_track_disappears(self, runtime):
+    def test_state_forgotten_when_grace_is_zero(self, runtime):
         """Absent tracks must be dropped so memory does not grow forever."""
-        rule = make_rule(config=ZoneEntryConfig(min_frames_in_zone=1))
+        rule = make_rule(
+            config=ZoneEntryConfig(
+                min_frames_in_zone=1, dropout_grace_seconds=0.0
+            )
+        )
         rule.update([make_observation(inside_track(1), runtime)], 100.0)
         assert len(rule._presence) == 1
 
@@ -284,6 +288,44 @@ class TestStateManagement:
         # counter restarted, so still below 3
         assert rule.update([make_observation(inside, runtime)], 104.0) == []
         assert len(rule.update([make_observation(inside, runtime)], 105.0)) == 1
+
+
+class TestTrackerDropoutContinuity:
+    def test_brief_dropout_does_not_duplicate_the_entry(self, runtime):
+        rule = make_rule(
+            config=ZoneEntryConfig(
+                min_frames_in_zone=1,
+                cooldown_seconds=0.0,
+                dropout_grace_seconds=2.0,
+            )
+        )
+        inside = inside_track()
+
+        assert len(rule.update([make_observation(inside, runtime)], 100.0)) == 1
+
+        # The tracker misses one frame while the subject is still in the zone.
+        assert rule.update([], 101.0) == []
+        assert rule.is_inside(1) is True
+
+        # Reappearing inside is the same entry, not a new one.
+        assert rule.update([make_observation(inside, runtime)], 102.0) == []
+        assert rule.is_inside(1) is True
+
+    def test_dropout_beyond_grace_rearms_a_real_entry(self, runtime):
+        rule = make_rule(
+            config=ZoneEntryConfig(
+                min_frames_in_zone=1,
+                cooldown_seconds=0.0,
+                dropout_grace_seconds=2.0,
+            )
+        )
+        inside = inside_track()
+
+        assert len(rule.update([make_observation(inside, runtime)], 100.0)) == 1
+        rule.update([], 103.0)
+        assert rule.is_inside(1) is False
+
+        assert len(rule.update([make_observation(inside, runtime)], 104.0)) == 1
 
 
 class TestProbePointChoice:

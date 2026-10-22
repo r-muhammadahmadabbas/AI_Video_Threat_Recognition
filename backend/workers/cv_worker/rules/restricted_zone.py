@@ -34,6 +34,7 @@ class _TrackPresence:
     consecutive_inside_frames: int = 0
     triggered: bool = False
     last_triggered_at: float | None = None
+    last_seen_at: float = 0.0
 
 
 @dataclass
@@ -71,15 +72,22 @@ class ZoneEntryRule(BehaviorRule):
 
         for observation in observations:
             tracker_id = observation.track.tracker_id
-            # Register presence even when below the confidence floor, so a
-            # briefly low-confidence frame forgets state and causes a
-            # duplicate incident when confidence recovers.
+            # Keep the track registered even below the confidence floor. A
+            # briefly weak detection must not look like an absence, because
+            # that would forget the presence state and duplicate the incident
+            # when confidence recovers.
             seen.add(tracker_id)
+
+            state = self._presence.get(tracker_id)
+            if state is not None:
+                state.last_seen_at = timestamp
 
             if observation.track.confidence < self.config.min_confidence:
                 continue
 
-            state = self._presence.setdefault(tracker_id, _TrackPresence())
+            if state is None:
+                state = _TrackPresence(last_seen_at=timestamp)
+                self._presence[tracker_id] = state
 
             was_inside = state.state == PresenceState.INSIDE
             now_inside = self._next_state(observation, was_inside)
@@ -111,7 +119,7 @@ class ZoneEntryRule(BehaviorRule):
             state.last_triggered_at = timestamp
             triggers.append(self._make_trigger(observation, timestamp))
 
-        self._forget_absent(seen)
+        self._forget_absent(seen, timestamp)
         return triggers
 
     def _next_state(self, observation: TrackObservation, was_inside: bool) -> bool:
@@ -152,15 +160,22 @@ class ZoneEntryRule(BehaviorRule):
             },
         )
 
-    def _forget_absent(self, seen: set[int]) -> None:
-        """Drop state for tracks the tracker no longer reports.
+    def _forget_absent(self, seen: set[int], timestamp: float) -> None:
+        """Age state for tracks the tracker no longer reports.
 
-        Without this, ``self._presence`` would grow without bound on a long
-        running camera and ``triggered`` flags would suppress a re-entry of the
-        same track id forever.
+        A short detection dropout keeps the presence state so reappearing
+        inside the same zone is not mistaken for a second entry. Once the gap
+        exceeds ``dropout_grace_seconds`` the state is dropped, which both
+        bounds memory and lets a later track reuse the id for a real entry.
+        With a zero grace the state is dropped immediately.
         """
         for tracker_id in [tid for tid in self._presence if tid not in seen]:
-            del self._presence[tracker_id]
+            state = self._presence[tracker_id]
+            if (
+                self.config.dropout_grace_seconds <= 0.0
+                or timestamp - state.last_seen_at > self.config.dropout_grace_seconds
+            ):
+                del self._presence[tracker_id]
 
     def reset(self) -> None:
         self._presence.clear()

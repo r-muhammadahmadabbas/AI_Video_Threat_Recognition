@@ -2,9 +2,9 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T01:52:13+00:00",
-  "sprint_index": 6,
-  "task_index": 1,
+  "updated_at": "2026-10-22T02:11:15+00:00",
+  "sprint_index": 7,
+  "task_index": 0,
   "attempts": 0,
   "completed": [
     "sprint-1.1",
@@ -20,31 +20,32 @@
     "sprint-5.2",
     "sprint-6.1",
     "sprint-6.2",
-    "sprint-7.1"
+    "sprint-7.1",
+    "sprint-7.2"
   ],
   "blocked": [],
   "last_result": {
     "status": "approved",
-    "task": "sprint-7.1",
-    "reason": "Adds a model-free live-path zone-entry evaluator (backend/scripts/eval/live_zone_entry.py) that replays recorded tracks through the same RuleEngine + ZoneEntryRule path used by CVWorker, plus 6 regression tests covering concave polygon geometry, entry direction, re-entry, event matching/schema round-trip, and the worker incident path."
+    "task": "sprint-7.2",
+    "reason": "Adds a dropout_grace_seconds window (default 1.0) to ZoneEntryConfig and ages instead of immediately deleting ZoneEntryRule presence state, so a 1-2 frame tracker dropout no longer duplicates a zone-entry incident; small, in-scope, test-backed, and regression-free, with accuracy explicitly not measured because model weights and labelled clips are missing."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 379
+    "diff_lines": 114
   },
   "metrics": {},
   "runs": 0,
   "current": {
-    "sprint_index": 6,
-    "task_index": 1,
-    "sprint_id": "sprint-7",
-    "sprint_name": "Zone and live evaluation",
-    "rule": "zone_entry",
-    "task_id": "sprint-7.2",
-    "task_title": "Close zone-entry accuracy gaps",
-    "goal": "Fix the largest measured zone-entry accuracy gap without touching live camera configuration or frontend code.",
-    "exit": "Measured improvement and no test regression."
+    "sprint_index": 7,
+    "task_index": 0,
+    "sprint_id": "sprint-8",
+    "sprint_name": "Regression and final report",
+    "rule": "all",
+    "task_id": "sprint-8.1",
+    "task_title": "Run the full accuracy regression",
+    "goal": "Run every available benchmark, fix regressions inside the allowed surface, and update the scoreboard with real numbers.",
+    "exit": "Full regression result with no unexplained regression."
   }
 }

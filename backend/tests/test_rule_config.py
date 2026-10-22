@@ -17,6 +17,7 @@ class TestZoneEntryConfig:
         assert cfg.min_frames_in_zone == 2
         assert cfg.min_confidence == 0.25
         assert cfg.cooldown_seconds == 60.0
+        assert cfg.dropout_grace_seconds == 1.0
         assert cfg.point == "bottom_center"
 
     def test_overrides_are_applied(self):

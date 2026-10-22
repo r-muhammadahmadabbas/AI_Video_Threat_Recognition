@@ -48,6 +48,12 @@ class ZoneEntryConfig(BaseModel):
         min_confidence: minimum detection confidence to consider at all.
         cooldown_seconds: minimum gap between two incidents for the same track
             in the same zone. Prevents one breach producing hundreds of alerts.
+        dropout_grace_seconds: how long a missing track keeps its presence
+            state. Trackers commonly drop a detection for a frame or two while
+            the subject has not actually left the zone. Reusing the state
+            across that gap prevents the same entry from opening a second
+            incident. An observed exit still clears state immediately; zero
+            disables the grace window.
         point: which point of the bounding box to test against the polygon.
             ``bottom_center`` is the default because it approximates where the
             subject's feet are, which is what an operator judges as "inside".
@@ -65,6 +71,7 @@ class ZoneEntryConfig(BaseModel):
     min_frames_in_zone: int = Field(default=2, ge=1)
     min_confidence: float = Field(default=0.25, ge=0.0, le=1.0)
     cooldown_seconds: float = Field(default=60.0, ge=0.0)
+    dropout_grace_seconds: float = Field(default=1.0, ge=0.0)
     point: Literal["bottom_center", "center"] = "bottom_center"
 
     @model_validator(mode="after")

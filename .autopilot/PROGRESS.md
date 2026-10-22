@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-22T01:52:13+00:00
+- Updated: 2026-10-22T02:11:15+00:00
 - Status: running
-- Progress: 14/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 7/8 (Zone and live evaluation) / Task 2 (Close zone-entry accuracy gaps)
-- Last result: approved: Adds a model-free live-path zone-entry evaluator (backend/scripts/eval/live_zone_entry.py) that replays recorded tracks through the same RuleEngine + ZoneEntryRule path used by CVWorker, plus 6 regression tests covering concave polygon geometry, entry direction, re-entry, event matching/schema round-trip, and the worker incident path.
+- Progress: 15/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 8/8 (Regression and final report) / Task 1 (Run the full accuracy regression)
+- Last result: approved: Adds a dropout_grace_seconds window (default 1.0) to ZoneEntryConfig and ages instead of immediately deleting ZoneEntryRule presence state, so a 1-2 frame tracker dropout no longer duplicates a zone-entry incident; small, in-scope, test-backed, and regression-free, with accuracy explicitly not measured because model weights and labelled clips are missing.
 
 ## Sprint board
 
@@ -24,6 +24,6 @@
 | Weapon accuracy | Improve weapon temporal evidence | done |
 | Weapon accuracy | Calibrate weapon threshold | done |
 | Zone and live evaluation | Add live zone-entry evaluation | done |
-| Zone and live evaluation | Close zone-entry accuracy gaps | current |
-| Regression and final report | Run the full accuracy regression | pending |
+| Zone and live evaluation | Close zone-entry accuracy gaps | done |
+| Regression and final report | Run the full accuracy regression | current |
 | Regression and final report | Write the final accuracy report and next backlog | pending |
