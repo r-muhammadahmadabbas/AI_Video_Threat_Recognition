@@ -7,9 +7,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from workers.cv_worker.rules.base import TrackObservation
-from workers.cv_worker.rules.config import CrowdAnomalyConfig
+from workers.cv_worker.rules.base import TrackObservation, Zone
+from workers.cv_worker.rules.config import CrowdAnomalyConfig, ZoneConfig
 from workers.cv_worker.rules.crowd import CrowdMotionRule
+from workers.cv_worker.rules.engine import RuleEngine
+from workers.cv_worker.rules.geometry import Polygon
 from workers.cv_worker.tracker import TrackedObject
 
 
@@ -76,6 +78,18 @@ def make_config(**overrides) -> CrowdAnomalyConfig:
     }
     base.update(overrides)
     return CrowdAnomalyConfig(**base)
+
+
+def _zone(width: float, height: float, zone_id: str = "zone_1") -> Zone:
+    """A pixel-space zone whose area is exactly ``width * height``."""
+    return Zone(
+        zone_id=zone_id,
+        name="Test Zone",
+        polygon=Polygon.from_bbox(0.0, 0.0, width, height),
+        config=ZoneConfig(
+            coordinate_space="pixel", reference_width=640, reference_height=480
+        ),
+    )
 
 
 class TestCrowdAnomalyConfig:
@@ -234,6 +248,89 @@ class TestCrowdMotionRule:
         assert t.details["current_features"]["mean_speed_px_per_s"] > 1.0
         assert t.details["feature_contributions"]["mean_speed_px_per_s"] > 0.5
 
+    def test_density_is_normalised_by_zone_area(self):
+        # The same four people are denser in a 100x100 zone than in a
+        # 1000x1000 zone. Density replaces raw count in the scored features,
+        # so the zone footprint is what turns a count into a density.
+        small = self._rule()
+        small.bind_zone(_zone(100.0, 100.0, "small"))
+        large = self._rule()
+        large.bind_zone(_zone(1000.0, 1000.0, "large"))
+        centers = _cluster(4, (200, 200), step=40)
+        observations = [_obs(i + 1, c) for i, c in enumerate(centers)]
+
+        small._record_tracks(observations, 1.0)
+        large._record_tracks(observations, 1.0)
+        small_features = small._aggregate(1.0)
+        large_features = large._aggregate(1.0)
+
+        assert small_features.track_count == large_features.track_count == 4
+        assert small_features.density == pytest.approx(4 * 1_000_000 / 10_000)
+        assert large_features.density == pytest.approx(4 * 1_000_000 / 1_000_000)
+        assert small_features.density == pytest.approx(100 * large_features.density)
+
+    def test_engine_binds_resolved_zone_area_to_crowd_rule(self):
+        engine = RuleEngine(camera_id="cam", frame_width=640, frame_height=480)
+        engine.load_zone(_zone(100.0, 50.0, "bound"))
+        rule = self._rule()
+
+        engine.bind_rule(rule, "bound")
+
+        assert rule._zone_area_px2 == pytest.approx(100.0 * 50.0)
+
+    def test_density_surge_fires_with_only_density_weight(self):
+        # A larger crowd in the same zone is a density surge. Motion and
+        # spacing weights are off, so density is the only possible trigger.
+        rule = self._rule(
+            score_threshold=0.5,
+            min_duration_seconds=2.0,
+            weight_track_count=1.0,
+            weight_mean_speed=0.0,
+            weight_direction_dispersion=0.0,
+            weight_mean_pair_distance=0.0,
+        )
+        calm = _cluster(4, (200, 200), step=60)
+        for t in range(1, 5):
+            assert self._feed(rule, calm, float(t)) == []
+
+        burst = _cluster(16, (300, 240), step=6)
+        assert self._feed(rule, burst, 5.0) == []
+        triggers = self._feed(rule, burst, 6.0)
+        assert len(triggers) == 1
+        contributions = triggers[0].details["feature_contributions"]
+        assert contributions["density_per_megapixel"] > 0.5
+        assert "track_count" not in contributions
+
+    def test_dispersing_crowd_is_not_anomalous(self):
+        # The baseline crowd is packed; it then spreads out without changing
+        # count. Density stays flat and pair distance rises, both of which
+        # are non-events, so the density/spacing terms alone cannot fire.
+        # Speed and dispersion are weighted off because repositioning tracks
+        # in this synthetic test would otherwise look like a motion spike.
+        rule = self._rule(
+            weight_mean_speed=0.0,
+            weight_direction_dispersion=0.0,
+        )
+        packed = _cluster(8, (200, 200), step=8)
+        for t in range(1, 6):
+            assert self._feed(rule, packed, float(t)) == []
+
+        dispersed = _cluster(8, (50, 50), step=180)
+        for t in range(6, 14):
+            assert self._feed(rule, dispersed, float(t)) == []
+
+    def test_slowing_crowd_is_not_anomalous(self):
+        # A moving baseline that comes to a stop is a decrease in motion.
+        # Only an increase above baseline is anomalous.
+        rule = self._rule()
+        for i in range(4):
+            moving = _moving(_cluster(8, (150, 200), step=20), 60, 0, i)
+            assert self._feed(rule, moving, float(i + 1)) == []
+
+        stationary = _cluster(8, (400, 200), step=20)
+        for t in range(5, 12):
+            assert self._feed(rule, stationary, float(t)) == []
+
     def test_score_breakdown_sums_to_score(self):
         rule = self._rule()
         calm = _cluster(5, (200, 200), step=60)
@@ -246,15 +343,21 @@ class TestCrowdMotionRule:
         t = triggers[0]
         details = t.details
         # Transparency: every feature, its baseline, and its contribution are
-        # carried in the trigger so the operator can see why it fired.
+        # carried in the trigger so the operator can see why it fired. Raw
+        # track count is reported for context but never scored; per-zone
+        # density takes its place.
         assert set(details["current_features"]) == {
             "track_count",
+            "density_per_megapixel",
             "mean_speed_px_per_s",
             "direction_dispersion",
             "mean_pair_distance_px",
         }
         assert set(details["baseline_features"]) == set(details["current_features"])
-        assert set(details["feature_contributions"]) == set(details["current_features"])
+        assert set(details["feature_contributions"]) == set(
+            details["current_features"]
+        ) - {"track_count"}
+        assert "track_count" not in details["feature_contributions"]
         assert details["score_threshold"] == 1.0
         # Contributions sum to the reported score (within rounding).
         total = sum(details["feature_contributions"].values())

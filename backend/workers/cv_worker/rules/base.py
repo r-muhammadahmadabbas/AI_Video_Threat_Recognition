@@ -114,6 +114,15 @@ class BehaviorRule(ABC):
         config = self.config
         return float(config.entry_margin), float(config.exit_margin)
 
+    def bind_zone(self, zone: Zone) -> None:  # noqa: B027 - optional hook
+        """Receive the resolved zone when the rule is bound (optional hook).
+
+        Most rules only need per-frame containment readings, so this is a
+        no-op. Zone-level rules such as crowd anomaly need the zone footprint
+        to express density in physical units instead of a raw person count.
+        The zone is always in this camera's pixel space.
+        """
+
     @abstractmethod
     def reset(self) -> None:
         """Drop all temporal state. Called when a zone is edited or unbound."""

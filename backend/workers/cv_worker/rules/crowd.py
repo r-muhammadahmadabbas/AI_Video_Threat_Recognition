@@ -1,15 +1,24 @@
 """Abnormal-crowd-movement candidate detection (Sprint 7A/7B/7C).
 
 This is a *crowd-level* rule: it scores the whole zone rather than a single
-track. Each frame it aggregates four transparent features over the people in
-the zone and compares a short observation window against a rolling baseline of
-the same camera's recent behaviour (a campus entrance at 8 AM is different
-from a parking area at midnight).
+track. Each frame it aggregates transparent features over the people in the
+zone and compares a short observation window against a rolling baseline of the
+same zone's recent behaviour (a campus entrance at 8 AM is different from a
+parking area at midnight, and a small zone is denser than a large one at the
+same person count).
+
+Raw person count is only a gating signal (``min_tracks``); it is not scored.
+The density feature is people per megapixel of the bound zone footprint, so
+the same number of people in a small zone is a stronger signal than in a large
+one. Density, speed and direction dispersion only contribute when they rise
+above the zone baseline, and pair distance only contributes when it falls
+(crowding). A crowd dispersing, calming down or leaving therefore cannot raise
+an alert on change alone.
 
 The anomaly score is deliberately transparent: it is a weighted sum of each
-feature's relative deviation from baseline, and every feature, its baseline,
-and its contribution are carried into the trigger metadata so an operator can
-see exactly why the scene was flagged.
+feature's one-sided relative deviation from baseline, and every feature, its
+baseline, and its contribution are carried into the trigger metadata so an
+operator can see exactly why the scene was flagged.
 """
 
 from __future__ import annotations
@@ -22,6 +31,7 @@ from workers.cv_worker.rules.base import (
     BehaviorRule,
     RuleTrigger,
     TrackObservation,
+    Zone,
 )
 from workers.cv_worker.rules.config import CrowdAnomalyConfig
 
@@ -29,6 +39,23 @@ from workers.cv_worker.rules.config import CrowdAnomalyConfig
 # the whole zone, not to any single subject, so it uses a stable sentinel that
 # keeps the engine's dedup key consistent for one zone/rule pair.
 _ZONE_TRIGGER_TRACKER_ID = -1
+
+# Density is reported as people per megapixel of zone footprint. A typical
+# 640x480 full-frame zone is 0.3 MP, so one person is already a visible
+# density; it keeps the feature on roughly the same scale as a person count
+# for common zones while still letting a small zone read as denser.
+_DENSITY_PIXELS_PER_UNIT = 1_000_000.0
+
+# Features that feed the anomaly score, the attribute they read, and the
+# direction that counts as anomalous. A crowd alert is about a scene becoming
+# denser or more agitated than this zone's own baseline; dispersal, calming
+# down and people leaving are not anomalies and must not raise the score.
+_SCORED_FEATURES: dict[str, tuple[str, str]] = {
+    "density_per_megapixel": ("density", "increase"),
+    "mean_speed_px_per_s": ("mean_speed", "increase"),
+    "direction_dispersion": ("direction_dispersion", "increase"),
+    "mean_pair_distance_px": ("mean_pair_distance", "decrease"),
+}
 
 
 def _distance(a: tuple[float, float], b: tuple[float, float]) -> float:
@@ -47,6 +74,7 @@ class _CrowdFeatures:
     """One frame's aggregate crowd features."""
 
     track_count: float
+    density: float
     mean_speed: float
     direction_dispersion: float
     mean_pair_distance: float
@@ -55,6 +83,7 @@ class _CrowdFeatures:
     def as_dict(self) -> dict[str, float]:
         return {
             "track_count": round(self.track_count, 2),
+            "density_per_megapixel": round(self.density, 3),
             "mean_speed_px_per_s": round(self.mean_speed, 2),
             "direction_dispersion": round(self.direction_dispersion, 2),
             "mean_pair_distance_px": round(self.mean_pair_distance, 2),
@@ -81,6 +110,18 @@ class CrowdMotionRule(BehaviorRule):
         self._snapshots: deque[_CrowdFeatures] = deque()
         self._high_seconds: float = 0.0
         self._last_triggered_at: float | None = None
+        # Tests and callers that drive a rule without an engine get a unit
+        # footprint; binding a zone replaces it with the real pixel area.
+        self._zone_area_px2: float = _DENSITY_PIXELS_PER_UNIT
+
+    def bind_zone(self, zone: Zone) -> None:
+        """Use the resolved zone footprint to normalise crowd density.
+
+        The engine resolves the polygon into this camera's pixel space before
+        calling this, so the area is directly comparable across cameras whose
+        stored zones use different coordinate conventions.
+        """
+        self._zone_area_px2 = max(float(zone.polygon.area), 1.0)
 
     def update(
         self,
@@ -179,6 +220,7 @@ class CrowdMotionRule(BehaviorRule):
         n = float(len(frames))
         return _CrowdFeatures(
             track_count=sum(f.track_count for f in frames) / n,
+            density=sum(f.density for f in frames) / n,
             mean_speed=sum(f.mean_speed for f in frames) / n,
             direction_dispersion=sum(f.direction_dispersion for f in frames) / n,
             mean_pair_distance=sum(f.mean_pair_distance for f in frames) / n,
@@ -212,6 +254,7 @@ class CrowdMotionRule(BehaviorRule):
 
         return _CrowdFeatures(
             track_count=track_count,
+            density=track_count * _DENSITY_PIXELS_PER_UNIT / self._zone_area_px2,
             mean_speed=mean_speed,
             direction_dispersion=direction_dispersion,
             mean_pair_distance=mean_pair_distance,
@@ -245,36 +288,39 @@ class CrowdMotionRule(BehaviorRule):
     def _anomaly_score(
         self, current: _CrowdFeatures, baseline: _CrowdFeatures
     ) -> tuple[float, dict[str, float]]:
-        """Weighted relative deviation of current features from baseline (7C).
+        """Weighted one-sided deviation of current features from baseline (7C).
 
-        Each feature's contribution is ``weight * |current - baseline| /
-        max(baseline, 1.0)``, so a calm baseline (speed ~0.5 px/s) that spikes
-        to 5 px/s contributes ``|5 - 0.5| / 1.0`` times its weight, while a
-        count growing from 10 to 30 contributes ``20 / 10``. The returned
+        Each contribution is ``weight * deviation / max(baseline, 1.0)``, where
+        ``deviation`` is the amount by which the current value exceeds the
+        baseline for density, speed and dispersion, or falls below it for pair
+        distance (crowding). A crowd dispersing, slowing down or leaving is not
+        an anomaly, so it does not accumulate score just because the absolute
+        change is large.
+
+        Density replaces the old raw person count: the same number of people in
+        a small zone is a stronger signal than in a large zone, while the term
+        is still normalised by this zone's own rolling baseline. The returned
         contributions sum exactly to the score, keeping the breakdown honest.
         """
         weights = self._weights()
         contributions: dict[str, float] = {}
         score = 0.0
-        for name, value in current.as_dict().items():
-            base = float(getattr(baseline, self._attr_for(name)))
-            contribution = weights[name] * abs(value - base) / max(base, 1.0)
+        for name, (attr, direction) in _SCORED_FEATURES.items():
+            value = float(getattr(current, attr))
+            base = float(getattr(baseline, attr))
+            delta = value - base
+            deviation = max(0.0, delta) if direction == "increase" else max(0.0, -delta)
+            contribution = weights[name] * deviation / max(base, 1.0)
             contributions[name] = round(contribution, 3)
             score += contribution
         return score, contributions
 
-    @staticmethod
-    def _attr_for(name: str) -> str:
-        return {
-            "track_count": "track_count",
-            "mean_speed_px_per_s": "mean_speed",
-            "direction_dispersion": "direction_dispersion",
-            "mean_pair_distance_px": "mean_pair_distance",
-        }[name]
-
     def _weights(self) -> dict[str, float]:
         return {
-            "track_count": self.config.weight_track_count,
+            # Kept under the historical name so stored camera configs remain
+            # valid; this weight now scales the per-zone density feature that
+            # replaced raw track count.
+            "density_per_megapixel": self.config.weight_track_count,
             "mean_speed_px_per_s": self.config.weight_mean_speed,
             "direction_dispersion": self.config.weight_direction_dispersion,
             "mean_pair_distance_px": self.config.weight_mean_pair_distance,
@@ -316,6 +362,7 @@ class CrowdMotionRule(BehaviorRule):
                 "current_features": current.as_dict(),
                 "baseline_features": baseline.as_dict(),
                 "feature_contributions": contributions,
+                "zone_area_px2": round(self._zone_area_px2, 1),
                 "observation_window_seconds": self.config.observation_window_seconds,
                 "baseline_window_seconds": self.config.baseline_window_seconds,
                 "min_tracks": self.config.min_tracks,

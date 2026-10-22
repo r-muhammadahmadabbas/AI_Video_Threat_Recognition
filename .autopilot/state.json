@@ -2,9 +2,9 @@
   "version": 1,
   "status": "running",
   "created_at": "2026-10-21T21:22:20+00:00",
-  "updated_at": "2026-10-22T00:49:37+00:00",
-  "sprint_index": 4,
-  "task_index": 1,
+  "updated_at": "2026-10-22T01:07:02+00:00",
+  "sprint_index": 5,
+  "task_index": 0,
   "attempts": 0,
   "completed": [
     "sprint-1.1",
@@ -16,31 +16,32 @@
     "sprint-3.2",
     "sprint-4.1",
     "sprint-4.2",
-    "sprint-5.1"
+    "sprint-5.1",
+    "sprint-5.2"
   ],
   "blocked": [],
   "last_result": {
     "status": "approved",
-    "task": "sprint-5.1",
-    "reason": "Approved: the loitering rule now records per-track center-path trajectory, rejects persistent stationary-object tracks, and preserves dwell across brief tracker dropouts, with 8 new regression tests; deterministic gates pass, guardian and evaluator both approve, and no accuracy claim is made because model weights and labelled loitering clips are missing."
+    "task": "sprint-5.2",
+    "reason": "Crowd anomaly scoring now uses per-zone density (people per megapixel of the bound zone footprint) and one-sided motion baselines instead of raw person count, with the engine binding the resolved zone via a new optional bind_zone() hook and 5 new regression tests; all gates pass and accuracy was not measured because model weights and labelled clips are missing."
   },
   "last_gates": {
     "tests_ok": true,
     "ruff_ok": true,
     "policy_errors": [],
-    "diff_lines": 245
+    "diff_lines": 226
   },
   "metrics": {},
   "runs": 0,
   "current": {
-    "sprint_index": 4,
-    "task_index": 1,
-    "sprint_id": "sprint-5",
-    "sprint_name": "Loitering and crowd accuracy",
-    "rule": "loitering",
-    "task_id": "sprint-5.2",
-    "task_title": "Improve crowd anomaly baseline",
-    "goal": "Improve crowd anomaly detection using per-zone density and motion baselines instead of raw person count.",
+    "sprint_index": 5,
+    "task_index": 0,
+    "sprint_id": "sprint-6",
+    "sprint_name": "Weapon accuracy",
+    "rule": "weapon",
+    "task_id": "sprint-6.1",
+    "task_title": "Improve weapon temporal evidence",
+    "goal": "Reduce weapon false positives with temporal voting, person-weapon association, and hard negatives such as phones, tools, and holsters.",
     "exit": "Targeted tests and event metrics."
   }
 }

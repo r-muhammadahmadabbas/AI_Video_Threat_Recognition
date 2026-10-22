@@ -110,6 +110,7 @@ class RuleEngine:
 
         for binding in self._bindings_for(zone.zone_id):
             binding.rederive(resolved.polygon)
+            binding.rule.bind_zone(resolved)
 
         return resolved
 
@@ -120,6 +121,7 @@ class RuleEngine:
                 f"cannot bind rule '{rule.rule_id}': zone '{zone_id}' is not loaded"
             )
 
+        rule.bind_zone(zone)
         binding = RuleBinding(
             rule=rule, zone_id=zone_id, expanded=zone.polygon, shrunk=zone.polygon
         )

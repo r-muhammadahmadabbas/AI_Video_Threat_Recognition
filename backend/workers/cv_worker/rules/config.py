@@ -402,7 +402,10 @@ class CrowdAnomalyConfig(BaseModel):
             before a trigger opens. This is the persistence guard: a one-frame
             surge (e.g. a dropped track) must not alert.
         cooldown_seconds: minimum gap between two triggers for this zone.
-        weight_track_count: contribution weight for the active-track-count feature.
+        weight_track_count: contribution weight for the per-zone density feature
+            (people per megapixel of zone footprint). The name is retained for
+            configuration compatibility; density replaced the raw track count in
+            the score, and raw count is now only used by ``min_tracks``.
         weight_mean_speed: contribution weight for the mean per-track speed.
         weight_direction_dispersion: contribution weight for the angular spread
             of track velocity directions.

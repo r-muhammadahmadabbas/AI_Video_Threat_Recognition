@@ -1,10 +1,10 @@
 # Autopilot progress
 
-- Updated: 2026-10-22T00:49:37+00:00
+- Updated: 2026-10-22T01:07:02+00:00
 - Status: running
-- Progress: 10/17 tasks, 0 blocked, 0 runs
-- Current: Sprint 5/8 (Loitering and crowd accuracy) / Task 2 (Improve crowd anomaly baseline)
-- Last result: approved: Approved: the loitering rule now records per-track center-path trajectory, rejects persistent stationary-object tracks, and preserves dwell across brief tracker dropouts, with 8 new regression tests; deterministic gates pass, guardian and evaluator both approve, and no accuracy claim is made because model weights and labelled loitering clips are missing.
+- Progress: 11/17 tasks, 0 blocked, 0 runs
+- Current: Sprint 6/8 (Weapon accuracy) / Task 1 (Improve weapon temporal evidence)
+- Last result: approved: Crowd anomaly scoring now uses per-zone density (people per megapixel of the bound zone footprint) and one-sided motion baselines instead of raw person count, with the engine binding the resolved zone via a new optional bind_zone() hook and 5 new regression tests; all gates pass and accuracy was not measured because model weights and labelled clips are missing.
 
 ## Sprint board
 
@@ -20,8 +20,8 @@
 | Fall accuracy | Improve fall recall without adding false alarms | done |
 | Fall accuracy | Calibrate fall confidence | done |
 | Loitering and crowd accuracy | Improve loitering trajectory evidence | done |
-| Loitering and crowd accuracy | Improve crowd anomaly baseline | current |
-| Weapon accuracy | Improve weapon temporal evidence | pending |
+| Loitering and crowd accuracy | Improve crowd anomaly baseline | done |
+| Weapon accuracy | Improve weapon temporal evidence | current |
 | Weapon accuracy | Calibrate weapon threshold | pending |
 | Zone and live evaluation | Add live zone-entry evaluation | pending |
 | Zone and live evaluation | Close zone-entry accuracy gaps | pending |
