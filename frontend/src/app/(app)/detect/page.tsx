@@ -156,7 +156,9 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
               className="pointer-events-none absolute inset-0 z-10 overflow-hidden"
               aria-hidden="true"
             >
-              <div className="scan-line h-16 w-full bg-gradient-to-b from-transparent via-primary/25 to-transparent" />
+              <div className="scan-line h-16 w-full bg-gradient-to-b from-transparent via-primary/30 to-transparent">
+                <div className="absolute inset-x-0 top-1/2 h-px bg-primary shadow-[0_0_18px_2px_var(--primary)]" />
+              </div>
             </div>
           )}
           {isVideo ? (

@@ -282,10 +282,33 @@
 .analysis-reveal > *:nth-child(n + 7) { animation-delay: 360ms; }
 
 @keyframes scan-line {
-  from { transform: translateY(-120%); }
-  to { transform: translateY(720%); }
+  0%,
+  100% {
+    top: -4rem;
+    opacity: 0;
+  }
+  12%,
+  88% {
+    opacity: 1;
+  }
+  50% {
+    top: calc(100% - 4rem);
+  }
 }
 
 .scan-line {
-  animation: scan-line 1.6s linear infinite;
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 4rem;
+  animation: scan-line 2.8s ease-in-out infinite;
+  will-change: top;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scan-line {
+    top: 50%;
+    animation: none;
+    opacity: 0.8;
+  }
 }
