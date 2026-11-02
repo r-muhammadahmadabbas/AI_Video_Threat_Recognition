@@ -6,11 +6,21 @@ import { DetectionResponse } from "@/types";
 import { classInfo, ruleLabel } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 import { SeverityBadge } from "@/components/status-badges";
-import { DetectionFrame } from "./DetectionFrame";
+import { MediaOverlay } from "./MediaOverlay";
 import { DetectionTimeline } from "./DetectionTimeline";
 import { cn } from "@/lib/utils";
 
-export function AnalysisReport({ result }: { result: DetectionResponse }) {
+interface AnalysisReportProps {
+  result: DetectionResponse;
+  mediaUrl?: string;
+  mediaType?: "video" | "image";
+}
+
+export function AnalysisReport({
+  result,
+  mediaUrl,
+  mediaType = "video",
+}: AnalysisReportProps) {
   const [selected, setSelected] = useState<number | null>(null);
 
   const threats = result.detections.filter((d) => d.is_threat);
@@ -87,6 +97,15 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
 
   return (
     <div className="analysis-reveal flex flex-col gap-6">
+      {mediaUrl && (
+        <MediaOverlay
+          src={mediaUrl}
+          mediaType={mediaType}
+          detections={result.detections}
+          events={result.events}
+        />
+      )}
+
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {stats.map((stat) => (
           <div
@@ -230,30 +249,6 @@ export function AnalysisReport({ result }: { result: DetectionResponse }) {
               </li>
             ))}
           </ul>
-        </div>
-      )}
-
-      {result.detections.length > 0 && (
-        <div>
-          <div className="mb-3 text-sm font-semibold">
-            Annotated frames ({result.detections.length})
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {result.detections.map((detection, index) => (
-              <button
-                type="button"
-                key={`${detection.track_id}-${detection.timestamp}-${index}`}
-                onClick={() => setSelected(selected === index ? null : index)}
-                className={cn(
-                  "rounded-xl text-left transition-shadow",
-                  selected === index &&
-                    "ring-2 ring-primary ring-offset-2 ring-offset-background",
-                )}
-              >
-                <DetectionFrame detection={detection} />
-              </button>
-            ))}
-          </div>
         </div>
       )}
     </div>

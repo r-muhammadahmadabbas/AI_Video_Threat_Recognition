@@ -22,6 +22,7 @@ export function useAuthenticatedBlob(url: string | null | undefined) {
       .then(() => {
         setLoading(true);
         setError(false);
+        setObjectUrl(null);
         return http.get(toRelative(url), { responseType: "blob" });
       })
       .then((response) => {
@@ -30,7 +31,10 @@ export function useAuthenticatedBlob(url: string | null | undefined) {
         setObjectUrl(created);
       })
       .catch(() => {
-        if (!cancelled) setError(true);
+        if (!cancelled) {
+          setObjectUrl(null);
+          setError(true);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);

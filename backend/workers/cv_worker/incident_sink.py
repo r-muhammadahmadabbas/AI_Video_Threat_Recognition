@@ -144,10 +144,22 @@ class DatabaseIncidentSink:
     between the two processes.
     """
 
+    def __init__(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
+        # The live worker runs on a background thread. The API engine is bound
+        # to the server loop, so inserts have to be scheduled there. A fresh
+        # ``asyncio.run`` loop cannot see those connections.
+        self._loop = loop
+
     # The camera id travels with each record, so one instance stays reusable
     # and a filed incident cannot drift from the camera that produced it.
     def record(self, record: IncidentRecord) -> int | None:
-        return asyncio.run(self._insert(record))
+        return self._run(self._insert(record))
+
+    def _run(self, coro):
+        loop = self._loop
+        if loop is not None and loop.is_running():
+            return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout=20)
+        return asyncio.run(coro)
 
     async def _insert(self, record: IncidentRecord) -> int:
         # Imported here rather than at module scope: importing the session
@@ -197,7 +209,7 @@ class DatabaseIncidentSink:
         return incident_id
 
     def attach_evidence(self, incident_id: int, attachment: EvidenceAttachment) -> None:
-        asyncio.run(self._insert_evidence(incident_id, attachment))
+        self._run(self._insert_evidence(incident_id, attachment))
 
     async def _insert_evidence(
         self, incident_id: int, attachment: EvidenceAttachment

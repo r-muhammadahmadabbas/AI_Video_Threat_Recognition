@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import tempfile
 import threading
 from pathlib import Path
@@ -56,7 +55,6 @@ class DetectionResult(BaseModel):
     weapon_conf: float
     fall: bool = False
     violence: bool = False
-    frame_image: str | None = None
 
 
 class RuleEventResult(BaseModel):
@@ -71,12 +69,6 @@ class DetectionResponse(BaseModel):
     total_frames: int
     detections: list[DetectionResult]
     events: list[RuleEventResult]
-
-
-def _encode_frame(frame: np.ndarray) -> str:
-    return base64.b64encode(
-        cv2.imencode(".jpg", frame, [cv2.IMWRITE_JPEG_QUALITY, 80])[1]
-    ).decode()
 
 
 def _process_video_file(path: Path) -> DetectionResponse:
@@ -96,11 +88,9 @@ def _process_video_file(path: Path) -> DetectionResponse:
             break
         if frame_idx % SAMPLE_EVERY == 0:
             ts = round(frame_idx / fps, 2)
-            annotated, dets = pipeline.process_frame(frame, ts)
-            img_b64 = _encode_frame(annotated)
+            _, dets = pipeline.process_frame(frame, ts)
 
             for detection in dets:
-                detection["frame_image"] = img_b64
                 all_detections.append(DetectionResult(**detection))
 
             for event in pipeline.events:
@@ -143,13 +133,9 @@ def _process_image_bytes(content: bytes) -> DetectionResponse:
     pipeline = _get_pipeline()
     pipeline.reset_session()
 
-    annotated, dets = pipeline.process_frame(frame, 0.0)
-    img_b64 = _encode_frame(annotated)
+    _, dets = pipeline.process_frame(frame, 0.0)
 
-    detections = []
-    for detection in dets:
-        detection["frame_image"] = img_b64
-        detections.append(DetectionResult(**detection))
+    detections = [DetectionResult(**detection) for detection in dets]
 
     events = [
         RuleEventResult(

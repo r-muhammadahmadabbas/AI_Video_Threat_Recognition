@@ -28,6 +28,7 @@ from workers.cv_worker.rules.base import (
     probe_point_for,
 )
 from workers.cv_worker.rules.geometry import InvalidPolygonError, Polygon
+from workers.cv_worker.rules.restricted_zone import ZoneEntryRule
 
 if TYPE_CHECKING:
     from workers.cv_worker.rules.config import ZoneConfig
@@ -36,6 +37,21 @@ if TYPE_CHECKING:
 # Dedup keys untouched for this long are dropped, so the mapping cannot grow
 # without bound on a camera that runs for weeks.
 _DEDUP_RETENTION_SECONDS = 3600.0
+# A 3x3 sample of the person's box. Four points inside means the body is in
+# the zone even when the feet sit just below a doorway the operator drew.
+_BODY_SAMPLE_HITS = 4
+
+
+def _body_in_zone(polygon: Polygon, bbox: tuple[float, ...]) -> bool:
+    if len(bbox) < 4:
+        return False
+    x1, y1, x2, y2 = (float(value) for value in bbox[:4])
+    if x2 <= x1 or y2 <= y1:
+        return False
+    xs = (x1, (x1 + x2) / 2.0, x2)
+    ys = (y1, (y1 + y2) / 2.0, y2)
+    hits = sum(1 for y in ys for x in xs if polygon.contains((x, y)))
+    return hits >= _BODY_SAMPLE_HITS
 
 
 def zone_to_pixel_polygon(zone: Zone, frame_width: int, frame_height: int) -> Polygon:
@@ -165,11 +181,20 @@ class RuleEngine:
 
         for track in tracks:
             point = probe_point_for(track, point_choice)
+            inside_expanded = binding.expanded.contains(point)
+            inside_shrunk = binding.shrunk.contains(point)
+            # Doorways are drawn around the opening. The feet often land just
+            # below that shape while the body is clearly inside it.
+            if isinstance(binding.rule, ZoneEntryRule):
+                if _body_in_zone(binding.expanded, track.bbox):
+                    inside_expanded = True
+                if _body_in_zone(binding.shrunk, track.bbox):
+                    inside_shrunk = True
             observations.append(
                 TrackObservation(
                     track=track,
-                    inside_expanded=binding.expanded.contains(point),
-                    inside_shrunk=binding.shrunk.contains(point),
+                    inside_expanded=inside_expanded,
+                    inside_shrunk=inside_shrunk,
                     probe_point=point,
                 )
             )

@@ -7,6 +7,7 @@ export const http = axios.create({
   baseURL: API_BASE,
   headers: {
     "Content-Type": "application/json",
+    "ngrok-skip-browser-warning": "true",
   },
 });
 
@@ -72,6 +73,15 @@ export function apiErrorMessage(
   }
   if (error instanceof Error) return error.message;
   return fallback;
+}
+
+export function websocketUrl(path: string, params: Record<string, string>) {
+  const base = API_BASE.replace(/^http/, "ws").replace(/\/$/, "");
+  const url = new URL(`${base}${path}`);
+  for (const [key, value] of Object.entries(params)) {
+    url.searchParams.set(key, value);
+  }
+  return url.toString();
 }
 
 export const api = {
@@ -233,6 +243,22 @@ export const api = {
       headers: { "Content-Type": "multipart/form-data" },
     });
     return response.data;
+  },
+
+  createLiveSession: async (cameraId?: number) => {
+    const response = await http.post("/live/sessions", {
+      camera_id: cameraId ?? null,
+    });
+    return response.data;
+  },
+
+  getLiveSession: async (sessionId: string) => {
+    const response = await http.get(`/live/sessions/${sessionId}`);
+    return response.data;
+  },
+
+  stopLiveSession: async (sessionId: string) => {
+    await http.delete(`/live/sessions/${sessionId}`);
   },
 
   healthCheck: async () => {

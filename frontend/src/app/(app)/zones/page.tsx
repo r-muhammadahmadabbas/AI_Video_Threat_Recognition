@@ -105,9 +105,14 @@ function PolygonEditor({
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const { objectUrl, loading } = useAuthenticatedBlob(
+  const { objectUrl, loading, error } = useAuthenticatedBlob(
     api.getCameraSnapshot(cameraId),
   );
+  const [size, setSize] = useState({ width: frameWidth, height: frameHeight });
+
+  useEffect(() => {
+    setSize({ width: frameWidth, height: frameHeight });
+  }, [cameraId, frameWidth, frameHeight]);
   const [points, setPoints] = useState<PolygonPoint[]>(initialPolygon[0] ?? []);
   const [history, setHistory] = useState<PolygonPoint[][]>([
     initialPolygon[0] ?? [],
@@ -120,6 +125,9 @@ function PolygonEditor({
     const image = new Image();
     image.onload = () => {
       imageRef.current = image;
+      if (image.naturalWidth > 0 && image.naturalHeight > 0) {
+        setSize({ width: image.naturalWidth, height: image.naturalHeight });
+      }
       setLoadedUrl(objectUrl);
     };
     image.src = objectUrl;
@@ -149,16 +157,16 @@ function PolygonEditor({
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const x = Math.round(
-      ((event.clientX - rect.left) * frameWidth) / rect.width,
+      ((event.clientX - rect.left) * canvas.width) / rect.width,
     );
     const y = Math.round(
-      ((event.clientY - rect.top) * frameHeight) / rect.height,
+      ((event.clientY - rect.top) * canvas.height) / rect.height,
     );
     const nextPoints = [
       ...points,
       {
-        x: Math.max(0, Math.min(frameWidth - 1, x)),
-        y: Math.max(0, Math.min(frameHeight - 1, y)),
+        x: Math.max(0, Math.min(canvas.width - 1, x)),
+        y: Math.max(0, Math.min(canvas.height - 1, y)),
       },
     ];
     setPoints(nextPoints);
@@ -170,8 +178,8 @@ function PolygonEditor({
       <div className="relative overflow-hidden rounded-md border border-border">
         <canvas
           ref={canvasRef}
-          width={frameWidth}
-          height={frameHeight}
+          width={size.width}
+          height={size.height}
           onClick={handleClick}
           className="h-auto w-full cursor-crosshair"
         />
@@ -181,6 +189,12 @@ function PolygonEditor({
           </div>
         )}
       </div>
+      {error && (
+        <p className="text-xs text-sev-critical">
+          No picture from this camera yet. Start the phone live stream, let a
+          frame appear, then select the camera again.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-2">
         <Button
           type="button"

@@ -47,6 +47,13 @@ Thumbs.db
 # Project specific
 backend/data/
 backend/media/
+data/accuracy/**/*.mp4
+data/accuracy/**/*.mov
+data/accuracy/**/*.avi
+data/accuracy/**/*.mkv
+data/coco/
+data/urfd/
+data/weapons/
 backend/models/
 backend/logs/
 frontend/node_modules/

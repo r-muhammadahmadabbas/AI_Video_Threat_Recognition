@@ -1,7 +1,9 @@
 import argparse
 import signal
 import tempfile
+import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -11,7 +13,7 @@ import numpy as np
 from app.config import settings
 from app.evidence.storage import EvidenceStore, LocalEvidenceStore
 from app.logging import get_logger
-from workers.cv_worker.analyzer import AnalyzerConfig, FrameAnalyzer
+from workers.cv_worker.analyzer import AnalyzerConfig, FrameAnalysis, FrameAnalyzer
 from workers.cv_worker.camera_config import load_camera_runtime
 from workers.cv_worker.clip_writer import ClipError, ClipWriter
 from workers.cv_worker.detector import Detection, YOLO26Detector
@@ -51,6 +53,18 @@ TRACKER_ARGS: frozenset[str] = frozenset(
     }
 )
 
+ProcessedCallback = Callable[
+    [
+        Frame,
+        TrackSnapshot | None,
+        list[Detection],
+        FrameAnalysis | None,
+        list[RuleTrigger],
+    ],
+    None,
+]
+TriggerCallback = Callable[[RuleTrigger, int | None], None]
+
 
 @dataclass
 class _ActiveWindow:
@@ -85,10 +99,16 @@ class CVWorker:
         enable_violence: bool = False,
         enable_weapon: bool = False,
         enable_fall: bool = False,
+        video_source: VideoSource | None = None,
+        on_processed: ProcessedCallback | None = None,
+        on_trigger: TriggerCallback | None = None,
     ):
         self._source_id = source_id
         self._source_path = source_path
         self._source_type = source_type
+        self._injected_source = video_source
+        self._on_processed = on_processed
+        self._on_trigger = on_trigger
         self._camera_id = camera_id
         self._incident_sink = (
             incident_sink
@@ -141,6 +161,10 @@ class CVWorker:
         return max(0, round(settings.video.clip_post_seconds * self._clip_fps))
 
     def _create_source(self) -> VideoSource:
+        if self._source_type == "live":
+            if self._injected_source is None:
+                raise ValueError("live source requires an injected VideoSource")
+            return self._injected_source
         if self._source_type == "file":
             return MP4VideoSource(self._source_id, self._source_path, loop=self._loop)
         if self._source_type == "webcam":
@@ -233,8 +257,9 @@ class CVWorker:
             )
 
         self._running = True
-        signal.signal(signal.SIGINT, self._signal_handler)
-        signal.signal(signal.SIGTERM, self._signal_handler)
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, self._signal_handler)
+            signal.signal(signal.SIGTERM, self._signal_handler)
 
         try:
             self._run_loop()
@@ -376,20 +401,31 @@ class CVWorker:
                 person_count=event.metadata.get("person_count", 0),
             )
 
+        triggers: list[RuleTrigger] = []
         if snapshot is not None:
-            self._apply_rules(frame, snapshot)
+            triggers = self._apply_rules(frame, snapshot)
+
+        if self._on_processed is not None:
+            try:
+                self._on_processed(frame, snapshot, detections, analysis, triggers)
+            except Exception:
+                logger.exception(
+                    "Processed-frame callback failed", source_id=self._source_id
+                )
 
         if self._display:
             self._render(frame, detections, events, snapshot)
 
-    def _apply_rules(self, frame: Frame, snapshot: TrackSnapshot) -> None:
+    def _apply_rules(
+        self, frame: Frame, snapshot: TrackSnapshot
+    ) -> list[RuleTrigger]:
         """Run the zone rules over this frame's tracks.
 
         The engine is built lazily on the first frame because a zone's polygon
         can only be resolved into pixel space once the frame size is known.
         """
         if not self._zones and not self._rules:
-            return
+            return []
 
         height, width = frame.data.shape[:2]
         if self._rule_engine is None:
@@ -426,6 +462,17 @@ class CVWorker:
             incident_id = self._persist(trigger)
             if incident_id is not None and self._evidence_store is not None:
                 self._open_window(trigger, incident_id, frame)
+            if self._on_trigger is not None:
+                try:
+                    self._on_trigger(trigger, incident_id)
+                except Exception:
+                    logger.exception(
+                        "Trigger callback failed",
+                        source_id=self._source_id,
+                        rule_id=trigger.rule_id,
+                    )
+
+        return triggers
 
     def _persist(self, trigger: RuleTrigger) -> int | None:
         """File a trigger as an incident, without letting persistence kill the stream.
@@ -652,7 +699,8 @@ class CVWorker:
             self._tracker.reset()
         if self._rule_engine is not None:
             self._rule_engine.reset()
-        cv2.destroyAllWindows()
+        if self._display:
+            cv2.destroyAllWindows()
         logger.info(
             "CV worker stopped",
             source_id=self._source_id,

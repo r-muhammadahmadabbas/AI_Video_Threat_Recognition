@@ -5,7 +5,6 @@ import {
   FileImage,
   FileVideo,
   Loader2,
-  Radio,
   ScanSearch,
   UploadCloud,
   X,
@@ -14,7 +13,6 @@ import { api, apiErrorMessage } from "@/lib/api";
 import { DetectionResponse } from "@/types";
 import { cn } from "@/lib/utils";
 import { AnalysisReport } from "@/components/detection/AnalysisReport";
-import { LiveQrCard } from "@/components/live-qr-card";
 import { ErrorState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,7 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type Tab = "video" | "image" | "live";
+type Tab = "video" | "image";
 
 function useObjectUrl(file: File | null) {
   const url = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
@@ -199,7 +197,11 @@ function UploadPanel({ kind }: { kind: "video" | "image" }) {
           <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
             Analysis report
           </h2>
-          <AnalysisReport result={result} />
+          <AnalysisReport
+            result={result}
+            mediaUrl={previewUrl ?? undefined}
+            mediaType={isVideo ? "video" : "image"}
+          />
         </div>
       )}
     </div>
@@ -210,17 +212,12 @@ const TAB_HEADERS: Record<Tab, { title: string; description: string }> = {
   video: {
     title: "Upload a recorded video",
     description:
-      "The model scans sampled frames, applies every detection rule, and produces a categorized report with annotated evidence frames.",
+      "The model scans sampled frames, applies every detection rule, and overlays each finding on the original video.",
   },
   image: {
     title: "Upload a photo or frame",
     description:
       "Single images are analyzed immediately: every weapon, person and anomaly is identified with a confidence score.",
-  },
-  live: {
-    title: "Stream live from your phone",
-    description:
-      "Scan the QR code with a phone and record the scene live. The clip is analyzed the moment you stop.",
   },
 };
 
@@ -234,8 +231,7 @@ export default function DetectPage() {
           Threat detection
         </h1>
         <p className="text-sm text-muted-foreground">
-          Upload footage or stream live from a mobile device for instant
-          analysis
+          Upload recorded footage for rule-based threat analysis
         </p>
       </div>
 
@@ -248,10 +244,6 @@ export default function DetectPage() {
           <TabsTrigger value="image" className="flex-1 gap-2">
             <FileImage className="h-4 w-4" aria-hidden="true" />
             Image upload
-          </TabsTrigger>
-          <TabsTrigger value="live" className="flex-1 gap-2">
-            <Radio className="h-4 w-4" aria-hidden="true" />
-            Live stream
           </TabsTrigger>
         </TabsList>
 
@@ -279,20 +271,6 @@ export default function DetectPage() {
             </CardHeader>
             <CardContent>
               <UploadPanel kind="image" />
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="live">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">
-                {TAB_HEADERS.live.title}
-              </CardTitle>
-              <CardDescription>{TAB_HEADERS.live.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <LiveQrCard />
             </CardContent>
           </Card>
         </TabsContent>

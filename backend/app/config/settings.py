@@ -165,6 +165,7 @@ class AppSettings(BaseSettings):
             "http://127.0.0.1:5173",
         ]
     )
+    cors_origin_regex: str | None = r"https://.*\.ngrok(-free)?\.app"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
     log_format: Literal["json", "console"] = "console"
 

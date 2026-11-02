@@ -10,18 +10,34 @@ import {
   Smartphone,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/api";
+import type { LiveSession } from "@/types";
 
 const emptySubscribe = () => () => {};
-const getCaptureUrl = () => `${window.location.origin}/live/capture`;
-const getServerCaptureUrl = () => "";
+const getPublicBase = () =>
+  (process.env.NEXT_PUBLIC_PUBLIC_URL || window.location.origin).replace(
+    /\/$/,
+    "",
+  );
+const getServerPublicBase = () => "";
 
-export function LiveQrCard() {
-  const url = useSyncExternalStore(
+export function LiveQrCard({ session }: { session: LiveSession }) {
+  const publicBase = useSyncExternalStore(
     emptySubscribe,
-    getCaptureUrl,
-    getServerCaptureUrl,
+    getPublicBase,
+    getServerPublicBase,
   );
   const [copied, setCopied] = useState(false);
+
+  const params = new URLSearchParams({
+    session: session.id,
+    token: session.capture_token,
+    api: API_BASE,
+  });
+  const url = publicBase
+    ? `${publicBase}/live/capture?${params.toString()}`
+    : "";
+  const apiOnLocalhost = /localhost|127\.0\.0\.1/.test(API_BASE);
 
   const copy = async () => {
     try {
@@ -48,12 +64,12 @@ export function LiveQrCard() {
           Scan to stream from your phone
         </div>
         <p className="text-sm text-muted-foreground">
-          Open the camera app on your phone, scan this QR code, and the live
-          capture page opens with your camera ready. Record footage and it will
-          be analyzed immediately when you stop.
+          Open the camera app on your phone, scan this QR code, and tap Start
+          live stream. Frames appear on this dashboard as they arrive, and rule
+          detections create incidents automatically.
         </p>
         <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-start">
-          <Button variant="outline" size="sm" onClick={copy}>
+          <Button variant="outline" size="sm" onClick={copy} disabled={!url}>
             {copied ? (
               <Check className="h-4 w-4 text-ok" aria-hidden="true" />
             ) : (
@@ -61,7 +77,7 @@ export function LiveQrCard() {
             )}
             {copied ? "Copied" : "Copy link"}
           </Button>
-          <Button asChild variant="outline" size="sm">
+          <Button asChild variant="outline" size="sm" disabled={!url}>
             <a href={url || "/live/capture"} target="_blank" rel="noreferrer">
               <ExternalLink className="h-4 w-4" aria-hidden="true" />
               Open capture page
@@ -73,8 +89,10 @@ export function LiveQrCard() {
             className="mt-0.5 h-3.5 w-3.5 shrink-0"
             aria-hidden="true"
           />
-          Mobile browsers require HTTPS (or localhost) to access the camera. Use
-          an HTTPS URL or a tunnel when scanning from a phone on the network.
+          Phone camera access requires HTTPS. Use the public HTTPS frontend URL
+          when scanning from a phone on the network.
+          {apiOnLocalhost &&
+            " The API URL is localhost; set NEXT_PUBLIC_API_URL to the public HTTPS API tunnel before scanning."}
         </div>
       </div>
     </div>

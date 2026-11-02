@@ -14,15 +14,13 @@ failing never looks like another camera finishing its clip.
 from __future__ import annotations
 
 import enum
+import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
 
 import cv2
-
-if TYPE_CHECKING:
-    import numpy as np
+import numpy as np
 
 
 @dataclass
@@ -333,6 +331,82 @@ class WebcamVideoSource(_LiveSource):
         if not capture.isOpened():
             raise RuntimeError(f"Cannot open webcam device: {self._device_id}")
         return capture
+
+
+class LiveFrameSource(VideoSource):
+    """Frames pushed into the worker by a live browser session.
+
+    The WebSocket endpoint owns the socket, while the CV worker owns the
+    inference loop. This source is the hand-off: it keeps only the newest
+    pending JPEG so a slow CPU cannot build an ever-growing backlog.
+    """
+
+    def __init__(self, source_id: str) -> None:
+        super().__init__(source_id, max_reconnect_attempts=0)
+        self._condition = threading.Condition()
+        self._pending: tuple[bytes, int] | None = None
+        self._frame_number = 0
+        self._closed = False
+
+    @property
+    def is_live(self) -> bool:
+        return True
+
+    def _open_capture(self) -> cv2.VideoCapture:
+        raise RuntimeError("LiveFrameSource does not open a capture device")
+
+    def push_jpeg(self, data: bytes) -> None:
+        """Replace the pending frame with the newest one."""
+        if not data:
+            return
+        with self._condition:
+            if self._closed:
+                return
+            self._frame_number += 1
+            self._pending = (data, self._frame_number)
+            self._condition.notify()
+
+    def read(self) -> Frame | None:
+        with self._condition:
+            if self._closed:
+                return self._handle_read_failure()
+            if self._pending is None:
+                self._condition.wait(timeout=0.25)
+            if self._pending is None:
+                return None
+            data, frame_number = self._pending
+            self._pending = None
+
+        # frombuffer() is read-only; OpenCV refuses to decode that on some builds
+        # and the worker then drops every phone frame while the viewer still
+        # shows the raw JPEG.
+        frame = cv2.imdecode(np.frombuffer(data, np.uint8).copy(), cv2.IMREAD_COLOR)
+        if frame is None:
+            return None
+
+        self._mark_streaming()
+        return Frame(
+            data=frame,
+            timestamp=time.time(),
+            frame_number=frame_number,
+            source_id=self.get_source_id(),
+        )
+
+    def is_opened(self) -> bool:
+        return not self._closed
+
+    def release(self) -> None:
+        with self._condition:
+            self._closed = True
+            self._pending = None
+            self._state = SourceState.CLOSED
+            self._condition.notify_all()
+
+    def get_fps(self) -> float:
+        return 0.0
+
+    def get_resolution(self) -> tuple[int, int]:
+        return (0, 0)
 
 
 class RTSPVideoSource(_LiveSource):

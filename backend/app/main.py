@@ -23,6 +23,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     logger.info("Database initialized")
     yield
     logger.info("Application shutting down")
+    from app.live.manager import manager as live_manager  # noqa: PLC0415
+
+    await live_manager.shutdown()
     await close_db()
     logger.info("Database connections closed")
 
@@ -40,6 +43,7 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=settings.cors_origin_regex,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -94,6 +98,7 @@ def create_app() -> FastAPI:
     from app.detection.router import router as detection_router
     from app.evidence.router import router as evidence_router
     from app.incidents.router import router as incidents_router
+    from app.live.router import router as live_router
     from app.rules.router import router as rules_router
     from app.users.router import router as users_router
     from app.zones.router import router as zones_router
@@ -102,6 +107,7 @@ def create_app() -> FastAPI:
     app.include_router(cameras_router, tags=["cameras"])
     app.include_router(detection_router, tags=["detection"])
     app.include_router(incidents_router, tags=["incidents"])
+    app.include_router(live_router, tags=["live"])
     app.include_router(zones_router, tags=["zones"])
     app.include_router(rules_router, tags=["rules"])
     app.include_router(evidence_router, tags=["evidence"])

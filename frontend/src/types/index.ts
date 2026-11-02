@@ -9,7 +9,6 @@ export interface DetectionResult {
   weapon_conf: number;
   fall?: boolean;
   violence?: boolean;
-  frame_image?: string | null;
 }
 
 export interface RuleTrigger {
@@ -24,6 +23,48 @@ export interface DetectionResponse {
   total_frames: number;
   detections: DetectionResult[];
   events: RuleTrigger[];
+}
+
+export interface LiveSession {
+  id: string;
+  camera_id: number;
+  camera_name: string;
+  capture_token: string;
+  expires_at: string;
+  status: string;
+}
+
+export interface LiveSessionStatus {
+  id: string;
+  camera_id: number;
+  camera_name: string;
+  status: string;
+}
+
+export interface LiveMetadata {
+  type: "metadata";
+  timestamp: number;
+  frame_width: number;
+  frame_height: number;
+  detections: DetectionResult[];
+  events: RuleTrigger[];
+}
+
+export interface LiveStatusMessage {
+  type: "status";
+  status: string;
+  camera_id?: number;
+  camera_name?: string;
+}
+
+export interface LiveIncidentMessage {
+  type: "incident";
+  incident_id: number | null;
+  rule: string;
+  rule_name: string;
+  severity: string;
+  timestamp: number;
+  tracker_ids: number[];
 }
 
 export interface User {

@@ -182,6 +182,24 @@ async def get_camera_snapshot(
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
 
+    source_url = (camera.source_url or "").lower()
+    virtual = (camera.config_json or {}).get("virtual")
+    if source_url.startswith("live://") or virtual == "phone_live":
+        from app.live.snapshots import latest_snapshot
+
+        found = latest_snapshot(camera.id)
+        if found is None:
+            raise HTTPException(
+                status_code=404,
+                detail="No phone frame yet. Start a live stream, then select this camera again.",
+            )
+        jpeg, width, height = found
+        if camera.width != width or camera.height != height:
+            camera.width = width
+            camera.height = height
+            await session.commit()
+        return Response(content=jpeg, media_type="image/jpeg")
+
     # Open the video source and grab one frame
     cap = cv2.VideoCapture(str(camera.source_url))
     if camera.username and camera.password:

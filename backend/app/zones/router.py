@@ -1,8 +1,8 @@
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,13 +15,36 @@ logger = get_logger(__name__)
 
 router = APIRouter(prefix="/zones", tags=["zones"])
 
+# One ring of [x, y] points, or a list of those rings. The editor sends the
+# ring form: [[[x, y], [x, y], ...]]. Older rows stored the points directly.
+PolygonRings = list[list[list[float]]]
+
+
+def _as_rings(value: Any) -> Any:
+    """Normalize a flat point list into the single-ring shape the editor draws."""
+    if not isinstance(value, list) or not value:
+        return value
+    first = value[0]
+    if (
+        isinstance(first, (list, tuple))
+        and len(first) == 2
+        and all(isinstance(item, (int, float)) for item in first)
+    ):
+        return [value]
+    return value
+
 
 class ZoneBase(BaseModel):
     name: str
     zone_type: ZoneType
-    polygon: List[List[float]]
+    polygon: PolygonRings
     is_active: bool = True
     config_json: dict = {}
+
+    @field_validator("polygon", mode="before")
+    @classmethod
+    def normalize_polygon(cls, value: Any) -> Any:
+        return _as_rings(value)
 
 
 class ZoneCreate(ZoneBase):
@@ -31,7 +54,14 @@ class ZoneCreate(ZoneBase):
 class ZoneUpdate(BaseModel):
     name: Optional[str] = None
     zone_type: Optional[ZoneType] = None
-    polygon: Optional[List[List[float]]] = None
+    polygon: Optional[PolygonRings] = None
+
+    @field_validator("polygon", mode="before")
+    @classmethod
+    def normalize_polygon(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        return _as_rings(value)
     is_active: Optional[bool] = None
     config_json: Optional[dict] = None
 
